@@ -280,6 +280,7 @@ activeSetIt   = options.activeSetIt;
 subspaceMin   = options.subspaceMin;
 maxMatvec     = max(3,options.maxMatvec);
 weights       = options.weights;
+maxLineErrors = Inf;     % Maximum number of line-search failures (DISABLED)
 quitPareto    = options.quitPareto;
 minPareto     = options.minPareto;
 lineSrchIt    = options.lineSrchIt;
@@ -288,8 +289,6 @@ ignorePErr    = options.ignorePErr;
 params.proxy  = options.proxy;
 funPenalty    = options.funPenalty;
 
-% maxLineErrors TEMPORARILY DISABLED to prevent very large scaling issue to throw off algorithm
-maxLineErrors = Inf;     % Maximum number of line-search failures.
 pivTol        = 1e-12;  % Threshold for significant Newton step.
 
 %----------------------------------------------------------------------
