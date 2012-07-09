@@ -7,16 +7,15 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %
 % [x, r, g, info] = spgl1(A,  b, tau, sigma, x, options, params )
 % 
-% Forward models that are not spot operators should be put into params.funForward. 
 % 
 % ---------------------------------------------------------------------
-% Solve the uber-generalized basis pursuit denoise (BPDN) problem
+% Solve the regularized composite problem
 %
-% (BPDN)   minimize  ||x||  subj to  h(b - f(x)) <= sigma,
+% (GBPDN)   minimize  ||x||  subj to  h(b - f(x)) <= sigma,
 %
-% or the regularized least-squares problem
+% or the regularized composite problem
 %
-% (LASSO)  minimize  h(b - f(x))  subj to  ||x|| <= tau.
+% (GLASSO)  minimize  h(b - f(x))  subj to  ||x|| <= tau.
 % ---------------------------------------------------------------------
 %
 % INPUTS
