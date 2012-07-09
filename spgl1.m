@@ -20,15 +20,20 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %
 % INPUTS
 % ======
-
-% funFoward   function handle for f(x) alone, with signature
-%          [f] = funForward(x)  and 
-%          [gv] = funForward(x, v)
-%           gv returns the action of the gradient of f on a vector. 
+% A        is one of 
+%          (a) an explicit m by n matrix
+%          (b) an implicit linear operator (SPOT) from R^n to R^m
+%          (c) a nonlinear function handle from R^n to R^m
+% 
 %
-% funPenalty  function handle for h(r) alone, with signature
-%          [f, g] = funPenalty(r)
-%
+%          If A is linear, then it must have the signature
+%              y = A(x,mode)   if mode == 1 then y is m-by-1;
+%                              if mode == 2 then y is n-by-1.
+% 
+%          If A is nonlinear, then it must have the signature 
+%               [f]  = funForward(x)  and 
+%               [gv] = funForward(x, v)
+%          gv returns the action of the gradient of f on a vector. 
 %
 %
 % b        is an m-vector.
@@ -78,6 +83,10 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %        .subspaceMin 0=no subspace minimization, 1=subspace minimization.
 %        .quitPareto  0=normal execution, 1=forces an exit when the pareto curve is reached
 %        .minPareto   Minimum number of spgl1 iterations before checking for quitPareto
+%        .funPenalty  function handle for h(r) alone, with signature
+%                     [f, g] = funPenalty(r)
+%
+
 %
 % EXAMPLE
 % =======
