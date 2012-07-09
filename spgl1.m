@@ -388,7 +388,7 @@ printf('\n %-22s: %8s'   ,'Regularizer'         , func2str(primal_norm));
 printf(' %-22s: %8.2e\n'   ,'Penalty(b)'        , bNorm               );
 printf(' %-22s: %8.2e %4s' ,'Optimality tol'    , optTol           ,'');
 if singleTau
-   printf(' %-22s: %8.2e\n'  ,'Target one-norm of x'  ,tau            );
+   printf(' %-22s: %8.2e\n'  ,'Target reg. norm of x'  ,tau            );
 else
    printf(' %-22s: %8.2e\n','Target objective'  ,sigma                );
 end
@@ -405,13 +405,6 @@ else
    printf(logH,'Iter','Objective','Relative Gap','Rel Error',...
           'gNorm','stepG','nnzX','nnzG','tau');
 end    
-
-
-
-
-%% SASHA's notes: 
-% 1) rNorm and f are the same now. 
-% 2) for now input argument x is required
 
 
 
