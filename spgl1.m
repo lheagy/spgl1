@@ -461,19 +461,30 @@ while 1
     rGap    = abs(gap) / max(1,f);
     aError1 = rNorm - sigma;
     aError2 = rNorm^2 - sigma^2; % Why not? 
-%    aError2 = f - sigma^2 / 2;
     rError1 = abs(aError1) / max(1,rNorm);
     rError2 = abs(aError2) / max(1,f);
+    
+    % Count number of consecutive iterations with identical support.
+    nnzOld = nnzIdx;
+    if(options.proxy)
+        [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g2,nnzIdx,options);
+    else
+        [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options);
+    end
+    if nnzDiff
+       nnzIter = 0;
+    end    
     
     dispFlag('fin CompConditions')
     
     if isempty(x)
         nnzX    = 0;
     else
+        nnzIter = nnzIter + 1;
+        if nnzIter >= activeSetIt, stat=EXIT_ACTIVE_SET; end
         nnzX    = sum(abs(x) >= min(.1,10*options.optTol));
     end
-    nnzG    = 0; % this is a temporary measure to make sure we don't destroy the log formatting
-    
+       
     % Single tau: Check if we're optimal.
     % The 2nd condition is there to guard against large tau.
     if singleTau
@@ -944,7 +955,11 @@ function [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options)
 % nnzDiff is the no. of elements that changed in the support.
   xTol    = min(.1,10*options.optTol);
   gTol    = min(.1,10*options.optTol);
-  gNorm   = options.dual_norm(g,options.weights, params);
+if(options.proxy)
+    gNorm   = options.dual_norm(g,options.weights, params);
+else
+    gNorm   = options.dual_norm(g,options.weights);
+end
   nnzOld  = nnzIdx;
 
   % Reduced costs for postive & negative parts of x.
