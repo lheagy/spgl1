@@ -45,6 +45,8 @@ if nargin == 0 && nargout == 0
    fprintf(' ignorePErr : [ 0=no, 1=yes             |     0 ]\n');
    fprintf(' funPenalty : [ function                |  funLS]\n');
    fprintf(' proxy      : [ 0=no, 1=yes             |  0    ]\n');
+   fprintf(' restore    : [ 0=no, 1=yes             |  0    ]\n');
+
 
    fprintf('\n');
    return;
@@ -78,6 +80,7 @@ Names = [
     'dual_norm         '
     'funPenalty        '
     'proxy             '
+    'restore           '
     ];
 [m,n] = size(Names);
 names = lower(Names);

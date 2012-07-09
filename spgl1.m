@@ -243,9 +243,11 @@ defaultopts = spgSetParms(...
 'primal_norm', @NormL1_primal  , ...
 'dual_norm'  , @NormL1_dual    , ...
 'funPenalty' , @funLS          , ... % default penalty - backward compatible with spgl1
-'proxy'      ,      0            ... % advanced option that computes pareto curve in a user-specified way. 
+'proxy'      ,      0          , ... % advanced option that computes pareto curve in a user-specified way. 
+'restore'    ,      0            ... % whether to restore best previous answer. for large problems, don't want to do this. 
    );
 options = spgSetParms(defaultopts, options);
+
 
 fid           = options.fid;
 logLevel      = options.verbosity;
@@ -270,6 +272,12 @@ primal_norm   = options.primal_norm;
 dual_norm     = options.dual_norm;
 params.proxy  = options.proxy;
 funPenalty    = options.funPenalty;
+
+
+% definitely don't do subspace minimiation in the non LS case
+if(~strcmp(func2str(funPenalty), 'funLS'))
+   subspaceMin = 0; 
+end
 
 pivTol        = 1e-12;  % Threshold for significant Newton step.
 
@@ -776,7 +784,7 @@ while 1
        lastFv(mod(iter,nPrevVals)+1) = undist(f);
        if fBest > f
           fBest = f;
-          % xBest = x;
+          xBest = x;
        end
     end
     
@@ -786,15 +794,21 @@ end % while 1
 
 % Restore best solution (only if solving single problem).
 if singleTau && f > fBest
-    %% Restoring of xBest is disabled to save memory for large problems
-    printf('NOTE: solution not actually optimal, best objective value is %13.7e',sqrt(2*fBest))
-    % rNorm = sqrt(2*fBest);
-    % printf('\n Restoring best iterate to objective %13.7e\n',rNorm);
-    % x = xBest;
-    % r = b - Aprod(x,1);
-    % g =   - Aprod(r,2);
-    % gNorm = dual_norm(g,weights);
-    % rNorm = norm(r,  2);
+    if(options.restore)
+     rNorm = fBest;
+     printf('\n Restoring best iterate to objective %13.7e\n',rNorm);
+     x = xBest;
+     r = b - funForward(x,[],params);
+     [f g g2] =   funCompositeR(x, r,params);
+     if(options.proxy)
+        gNorm = dual_norm(g2,weights);
+     else
+         gNorm = dual_norm(g,weights);
+     end
+     rNorm = f;
+    else
+         printf('NOTE: solution not actually optimal, best objective value is %13.7e',fBest)
+    end
 end
 
 % Final cleanup before exit.
