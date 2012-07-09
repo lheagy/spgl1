@@ -13,7 +13,7 @@ function options = spgSetParms(varargin)
 %   structure where all the fields are empty.
 %
 %   spgSetParms.m
-%   $Id: spgSetParms.m 1407 2009-06-30 20:00:54Z ewout78 $
+%   $Id: spgSetParms.m 70 2012-06-28 23:41:39Z saravkin $
 
 % Print out possible values of properties.
 if nargin == 0 && nargout == 0
@@ -23,7 +23,6 @@ if nargin == 0 && nargout == 0
    fprintf(' iterations : [ positive integer        |  10*m ]\n');
    fprintf('  nPrevVals : [ positive integer        |    10 ]\n');
    fprintf('      bpTol : [ positive scalar         | 1e-06 ]\n');
-   fprintf('      lsTol : [ positive scalar         | 1e-06 ]\n');
    fprintf('     optTol : [ positive scalar         | 1e-04 ]\n');
    fprintf('     decTol : [ positive scalar         | 1e-04 ]\n');   
    fprintf('    stepMin : [ positive scalar         | 1e-16 ]\n');
@@ -37,6 +36,16 @@ if nargin == 0 && nargout == 0
    fprintf('    project : [ projection function     |    @()]\n');
    fprintf('primal_norm : [ primal norm eval fun    |    @()]\n');
    fprintf('  dual_norm : [ dual norm eval fun      |    @()]\n');
+   fprintf('   Kaczmarz : [ 0=no, 1=proj, 2=rtfind  |     0 ]\n');
+   fprintf('  KaczScale : [ positive scalar         |     1 ]\n');
+   fprintf(' quitPareto : [ 0=no, 1=yes             |     0 ]\n');
+   fprintf(' minPareto  : [ positive integer        |     3 ]\n');
+   fprintf(' lineSrchIt : [ positive integer        |     1 ]\n');
+   fprintf(' feasSrchIt : [ positive integer        | 10000 ]\n');
+   fprintf(' ignorePErr : [ 0=no, 1=yes             |     0 ]\n');
+   fprintf(' funPenalty : [ function                |  funLS]\n');
+   fprintf(' proxy      : [ 0=no, 1=yes             |  0    ]\n');
+
    fprintf('\n');
    return;
 end
@@ -47,7 +56,6 @@ Names = [
     'iterations        '
     'nPrevVals         '
     'bpTol             '
-    'lsTol             '
     'optTol            '
     'decTol            '
     'stepMin           '
@@ -58,10 +66,19 @@ Names = [
     'iscomplex         '
     'maxMatvec         '
     'weights           '
+    'Kaczmarz          '
+    'KaczScale         '
+    'quitPareto        '
+    'minPareto         '
+    'lineSrchIt        '
+    'feasSrchIt        '
+    'ignorePErr        ' 
     'project           '
     'primal_norm       '
     'dual_norm         '
-	];
+    'funPenalty        '
+    'proxy             '
+    ];
 [m,n] = size(Names);
 names = lower(Names);
 
