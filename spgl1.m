@@ -219,9 +219,9 @@ if ~exist('x','var'), x = []; end
 if ~exist('sigma','var'), sigma = []; end
 if ~exist('tau','var'), tau = []; end
 
-%if nargin < 2 || isempty(b) || isempty(A)
-%   error('At least two arguments are required');
-if isempty(tau) && isempty(sigma)
+if nargin < 2 || isempty(b) || isempty(A)
+   error('At least two arguments are required');
+elseif isempty(tau) && isempty(sigma)
    tau = 0;
    sigma = 0;
    singleTau = false;
