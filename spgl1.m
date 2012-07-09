@@ -187,11 +187,6 @@ DATE     = DATE(35:50);
 % Set to true to display debug flags
 PRINT_DEBUG_FLAGS = false;
 
-% A check to verify that this is the SLIM version of SPGl1
-%if isstr(A) && strcmp(A,'is_SLIM_version')
-%    x = 1;
-%    return
-%end
 
 tic;              % Start your watches!
 m = length(b);
@@ -271,6 +266,8 @@ minPareto     = options.minPareto;
 lineSrchIt    = options.lineSrchIt;
 feasSrchIt    = options.feasSrchIt;
 ignorePErr    = options.ignorePErr;
+primal_norm   = options.primal_norm;
+dual_norm     = options.dual_norm;
 params.proxy  = options.proxy;
 funPenalty    = options.funPenalty;
 
@@ -351,6 +348,13 @@ if bNorm <= sigma
    tau = 0;  singleTau = true;
 end 
   
+% Don't do subspace minimization if x is complex.
+if ~realx && subspaceMin
+   printf('W: Subspace minimization disabled when variables are complex.\n');
+   subspaceMin = false;
+end
+ 
+
 
 % Pre-allocate iteration info vectors
 xNorm1 = zeros(min(maxIts,10000),1);
@@ -373,21 +377,23 @@ EXIT_AT_PARETO     = 10;
 % Log header.
 %----------------------------------------------------------------------
 printf('\n');
-printf(' %s\n',repmat('=',1,82));
-printf(' SPGL1_SLIM v.%s (%s) based on v.1017\n', REVISION, DATE);
-printf(' %s\n',repmat('=',1,82));
-printf(' %-22s: %8i %4s'   ,'No. rows'          ,m       ,'');
-printf(' %-22s: %8i\n'     ,'No. columns'       ,n          );
-printf(' %-22s: %8.2e %4s' ,'Initial tau'       ,tau     ,'');
-printf(' %-22s: %8.2e\n'   ,'Two-norm of b'     ,bNorm      );
-printf(' %-22s: %8.2e %4s' ,'Optimality tol'    ,optTol  ,'');
+printf(' %s\n',repmat('=',1,80));
+printf(' SPGL1  v.%s (%s)\n', REVISION, DATE);
+printf(' %s\n',repmat('=',1,80));
+printf(' %-22s: %8i %4s'   ,'No. rows'          ,m                 ,'');
+printf(' %-22s: %8i\n'     ,'No. columns'       ,n                    );
+printf(' %-22s: %8.2e %4s' ,'Initial tau'       ,tau               ,'');
+printf(' %-22s: %8s'   ,'Penalty  '             , func2str(funPenalty));
+printf('\n %-22s: %8s'   ,'Regularizer'         , func2str(primal_norm));
+printf(' %-22s: %8.2e\n'   ,'Penalty(b)'        , bNorm               );
+printf(' %-22s: %8.2e %4s' ,'Optimality tol'    , optTol           ,'');
 if singleTau
-   printf(' %-22s: %8.2e\n'  ,'Target one-norm of x'  ,tau       );
+   printf(' %-22s: %8.2e\n'  ,'Target one-norm of x'  ,tau            );
 else
-   printf(' %-22s: %8.2e\n','Target objective'  ,sigma      );
+   printf(' %-22s: %8.2e\n','Target objective'  ,sigma                );
 end
-printf(' %-22s: %8.2e %4s' ,'Basis pursuit tol' ,bpTol   ,'');
-printf(' %-22s: %8i\n'     ,'Maximum iterations',maxIts     );
+printf(' %-22s: %8.2e %4s' ,'Basis pursuit tol' ,bpTol             ,'');
+printf(' %-22s: %8i\n'     ,'Maximum iterations',maxIts               );
 printf('\n');
 if singleTau
    logB = ' %5i  %13.7e  %13.7e  %9.2e  %6.1f  %6i  %6i';
@@ -456,10 +462,10 @@ while 1
 
     % Compute quantities needed for log and exit conditions.
     if(options.proxy)
-        gNorm   = undist(options.dual_norm(g2,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+        gNorm   = undist(dual_norm(g2,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
     else
         % for now, we assume params only used by proxy formulations
-        gNorm   = undist(options.dual_norm(g,weights)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+        gNorm   = undist(dual_norm(g,weights)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
     end
     %    g2Norm  = undist(options.dual_norm(g2,weights,params));
     rNorm   = f;  % rNorm and f are exactly the same. 
@@ -560,7 +566,7 @@ while 1
     if isempty(x)
         xNorm1(iter+1) = 0;
     else
-        xNorm1(iter+1) = options.primal_norm(x,weights);
+        xNorm1(iter+1) = primal_norm(x,weights);
     end
     rNorm2(iter+1) = rNorm;
     lambda(iter+1) = gNorm;
@@ -628,7 +634,7 @@ while 1
           end
        end
        
-       primNorm_x = undist(options.primal_norm(x,weights));
+       primNorm_x = undist(primal_norm(x,weights));
        targetNorm = tau+optTol;
        
        if ignorePErr
@@ -728,7 +734,7 @@ if singleTau && f > fBest
     % x = xBest;
     % r = b - Aprod(x,1);
     % g =   - Aprod(r,2);
-    % gNorm = options.dual_norm(g,weights);
+    % gNorm = dual_norm(g,weights);
     % rNorm = norm(r,  2);
 end
 
@@ -809,7 +815,7 @@ function [f g1 g2] = funCompositeR(r, funForward, funPenalty, params)
     tStart = toc;
     nProdAt = nProdAt + 1;
     [f v] = funPenalty(r, params);
-    if(~options.proxy)
+    if(~params.proxy)
         g1 = funForward(x, -v, params);
         g2 = 0;
     else
