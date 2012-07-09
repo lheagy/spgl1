@@ -639,7 +639,7 @@ while 1
        %---------------------------------------------------------------
        doSubspaceMin = false;
        if subspaceMin
-           g = - Aprod(r,2);
+           g = - funForward(x, r,2);
            [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzOld,options);
            if ~nnzDiff
                if nnzX == nnzG, itnMaxLSQR = 20;
@@ -661,7 +661,7 @@ while 1
            
            ebar   = sign(x(nnzIdx));
            nebar  = length(ebar);
-           Sprod  = @(y,mode)LSQRprod(@Aprod,nnzIdx,ebar,n,y,mode);
+           Sprod  = @(y,mode)LSQRprod(funForward,nnzIdx,ebar,n,x, y,mode, params);
            
            [dxbar, istop, itnLSQR] = ...
                lsqr(m,nebar,Sprod,r,damp,aTol,bTol,conLim,itnMaxLSQR,showLSQR);
@@ -688,8 +688,8 @@ while 1
                
                % Update variables.
                x    = x + alpha*dx;
-               r    = b - Aprod(x,1);
-               f    = r'*r / 2;
+               r    = b - funForward(x,[], params);
+               f    = funPenalty(r, params);
                subspace = true;
            end
        end
@@ -1045,16 +1045,16 @@ end % function spgActiveVars
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function z = LSQRprod(Aprod,nnzIdx,ebar,n,dx,mode)
+function z = LSQRprod(funForward,nnzIdx,ebar,n,x,dx,mode, params)
 % Matrix multiplication for subspace minimization.
 % Only called by LSQR.
   nbar = length(ebar);
    if mode == 1
       y = zeros(n,1);
       y(nnzIdx) = dx - (1/nbar)*(ebar'*dx)*ebar; % y(nnzIdx) = Z*dx
-      z = Aprod(y,1);                            % z = S Z dx
+      z = funForward(y, [], params);                            % z = S Z dx
    else
-      y = Aprod(dx,2);
+      y = funForward(x, dx,params);
       z = y(nnzIdx) - (1/nbar)*(ebar'*y(nnzIdx))*ebar;
    end
 end
