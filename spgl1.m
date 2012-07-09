@@ -591,7 +591,10 @@ while 1
        %---------------------------------------------------------------
        dispFlag('begin LineSrch')
 
-       [nLine,stepG,lnErr] = spgLineCurvy(max(lastFv));
+       [f,x,r,nLine,stepG,lnErr, localProdA] = ...
+           spgLineCurvy(x,gStep*g,max(lastFv),funForward, funPenalty, b,@project,tau, params);
+       nProdA = nProdA + localProdA;
+       
        dispFlag('fin LineSrch');
        nLineTot = nLineTot + nLine;
        if lnErr
@@ -921,82 +924,7 @@ end % function project
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [iterG,stepG,errG] = ...
-    spgLineCurvy(fMax)
-% Projected backtracking linesearch.
-% On entry,
-% g  is the (possibly scaled) steepest descent direction.
 
-EXIT_PBLINE_CONVERGED  = 0;
-EXIT_PBLINE_ITERATIONS = 1;
-EXIT_PBLINE_NODESCENT  = 2;
-gamma  = 1e-4;
-stepG   =  1;
-scale  =  1;      % Safeguard scaling.  (See below.)
-nSafe  =  0;      % No. of safeguarding steps.
-iterG   =  0;
-debug  =  false;  % Set to true to enable log.
-% n      =  length(x);
-
-if debug
-   fprintf(' %5s  %13s  %13s  %13s  %8s\n',...
-           'LSits','fNew','step','gts','scale');  
-end
-
-if isempty(xOld)
-    gtxOld = 0;
-else
-    gtxOld = gStep * dot(g,xOld);
-end
-
-while 1
-    
-    % Calculate scaling of gradient
-    g_scale = -stepG*scale*gStep;
-    
-    % Evaluate trial point
-    clear x
-    if isempty(xOld)
-        x     = project(g_scale .* g, tau);
-    else
-        x     = project(xOld + g_scale .* g, tau);
-    end
-    
-    % Evaluate function value
-    clear r
-    r     = b - funForward(x, [], params);
-    nProdA = nProdA + 1;
-    f     = funPenalty(r, params);
-   % [f g] = funComposite(x, b, funForward, funPenalty, params);
-    %f     = norm(r)^2 / 2;
-    gtx   = gStep * dot(g,x);
-    gts   = scale * (gtx - gtxOld);
-    if gts >= 0 % Should we check real and complex parts individually?
-       errG = EXIT_PBLINE_NODESCENT;
-       break
-    end
-
-    if debug
-        fprintf(' LS %2i  %13.7e  %13.7e  %13.6e  %8.1e\n',...
-                iterG,f,stepG,undist(gts),scale);
-    end
-    
-    % 03 Aug 07: If gts is complex, then should be looking at -abs(gts).
-    if f < fMax - gamma*stepG*abs(gts)  % Sufficient descent condition.
-       errG = EXIT_PBLINE_CONVERGED;
-       break
-    elseif iterG >= lineSrchIt                 % Too many linesearch iterations.
-       errG = EXIT_PBLINE_ITERATIONS;
-       break
-    end
-    
-    % New linesearch iteration.
-    iterG = iterG + 1;
-    stepG = stepG / 2;
-    
-end % while 1
-    
-end % function spgLineCurvy
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1138,4 +1066,164 @@ while 1
 end % while 1
 
 end % function spgLine
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+function [fNew,xNew,rNew,iter,step,err, nProd] = ...
+    spgLineCurvy(x,g,fMax,funForward, funPenalty, b,project,tau, params)
+% Projected backtracking linesearch.
+% On entry,
+% g  is the (possibly scaled) steepest descent direction.
+nProd = 0;
+nProdAt = 0;
+EXIT_CONVERGED  = 0;
+EXIT_ITERATIONS = 1;
+EXIT_NODESCENT  = 2;
+gamma  = 1e-4;
+maxIts = 10;
+step   =  1;
+sNorm  =  0;
+scale  =  1;      % Safeguard scaling.  (See below.)
+nSafe  =  0;      % No. of safeguarding steps.
+iter   =  0;
+debug  =  false;  % Set to true to enable log.
+n      =  length(x);
+
+if debug
+   fprintf(' %5s  %13s  %13s  %13s  %8s\n',...
+           'LSits','fNew','step','gts','scale');  
+end
+   
+while 1
+
+    % Evaluate trial point and function value.
+    xNew     = project(x - step*scale*g, tau);
+    rNew     = b - funForward(xNew, [], params);
+    nProd    = nProd + 1;
+    fNew     = funPenalty(rNew, params);
+    s        = xNew - x;
+    gts      = scale * real(g' * s);
+%   gts      = scale * (g' * s);
+    if gts >= 0
+       err = EXIT_NODESCENT;
+       break
+    end
+
+    if debug
+       fprintf(' LS %2i  %13.7e  %13.7e  %13.6e  %8.1e\n',...
+               iter,fNew,step,gts,scale);
+    end
+    
+    % 03 Aug 07: If gts is complex, then should be looking at -abs(gts).
+    % 13 Jul 11: It's enough to use real part of g's (see above).
+    if fNew < fMax + gamma*step*gts
+%   if fNew < fMax - gamma*step*abs(gts)  % Sufficient descent condition.
+       err = EXIT_CONVERGED;
+       break
+    elseif iter >= maxIts                 % Too many linesearch iterations.
+       err = EXIT_ITERATIONS;
+       break
+    end
+    
+    % New linesearch iteration.
+    iter = iter + 1;
+    step = step / 2;
+
+    % Safeguard: If stepMax is huge, then even damped search
+    % directions can give exactly the same point after projection.  If
+    % we observe this in adjacent iterations, we drastically damp the
+    % next search direction.
+    % 31 May 07: Damp consecutive safeguarding steps.
+    sNormOld  = sNorm;
+   sNorm     = norm(s) / sqrt(n);
+    %   if sNorm >= sNormOld
+    if abs(sNorm - sNormOld) <= 1e-6 * sNorm
+       gNorm = norm(g) / sqrt(n);
+       scale = sNorm / gNorm / (2^nSafe);
+       nSafe = nSafe + 1;
+    end
+    
+end % while 1
+
+end % function spgLineCurvy
+
+
+% function [fNew,xNew,rNew,iter,step,err] = ...
+%     spgLineCurvy(x,xOld, g,fMax,funForward, funPenalty, b,project,tau)
+% %function [iterG,stepG,errG] = ...
+% %    spgLineCurvy(fMax)
+% % Projected backtracking linesearch.
+% % On entry,
+% % g  is the (possibly scaled) steepest descent direction.
+% 
+% EXIT_PBLINE_CONVERGED  = 0;
+% EXIT_PBLINE_ITERATIONS = 1;
+% EXIT_PBLINE_NODESCENT  = 2;
+% gamma  = 1e-4;
+% stepG   =  1;
+% scale  =  1;      % Safeguard scaling.  (See below.)
+% nSafe  =  0;      % No. of safeguarding steps.
+% iterG   =  0;
+% debug  =  false;  % Set to true to enable log.
+% % n      =  length(x);
+% 
+% if debug
+%    fprintf(' %5s  %13s  %13s  %13s  %8s\n',...
+%            'LSits','fNew','step','gts','scale');  
+% end
+% 
+% if isempty(xOld)
+%     gtxOld = 0;
+% else
+%     gtxOld = gStep * dot(g,xOld);
+% end
+% 
+% while 1
+%     
+%     % Calculate scaling of gradient
+%     g_scale = -stepG*scale*gStep;
+%     
+%     % Evaluate trial point
+%     clear x
+%     if isempty(xOld)
+%         x     = project(g_scale .* g, tau);
+%     else
+%         x     = project(xOld + g_scale .* g, tau);
+%     end
+%     
+%     % Evaluate function value
+%     clear r
+%     r     = b - funForward(x, [], params);
+%     nProdA = nProdA + 1;
+%     f     = funPenalty(r, params);
+%    % [f g] = funComposite(x, b, funForward, funPenalty, params);
+%     %f     = norm(r)^2 / 2;
+%     gtx   = gStep * dot(g,x);
+%     gts   = scale * (gtx - gtxOld);
+%     if gts >= 0 % Should we check real and complex parts individually?
+%        errG = EXIT_PBLINE_NODESCENT;
+%        break
+%     end
+% 
+%     if debug
+%         fprintf(' LS %2i  %13.7e  %13.7e  %13.6e  %8.1e\n',...
+%                 iterG,f,stepG,undist(gts),scale);
+%     end
+%     
+%     % 03 Aug 07: If gts is complex, then should be looking at -abs(gts).
+%     if f < fMax - gamma*stepG*abs(gts)  % Sufficient descent condition.
+%        errG = EXIT_PBLINE_CONVERGED;
+%        break
+%     elseif iterG >= lineSrchIt                 % Too many linesearch iterations.
+%        errG = EXIT_PBLINE_ITERATIONS;
+%        break
+%     end
+%     
+%     % New linesearch iteration.
+%     iterG = iterG + 1;
+%     stepG = stepG / 2;
+%     
+% end % while 1
+%     
+% end % function spgLineCurvy
 
