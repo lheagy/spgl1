@@ -153,6 +153,7 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %             nonlinear forward models. 
 %             Aleksandr Aravkin (saravkin@eos.ubc.ca).
 %
+% 09 July 12: Removed Kacmarz options (not used anyway) (AA).
 %
 %   ----------------------------------------------------------------------
 %   This file is part of SPGL1 (Spectral Projected-Gradient for L1).
@@ -253,8 +254,6 @@ defaultopts = spgSetParms(...
 'iscomplex'  ,    NaN , ... % Flag set to indicate complex problem
 'maxMatvec'  ,    Inf , ... % Maximum matrix-vector multiplies allowed
 'weights'    ,      1 , ... % Weights W in ||Wx||_1
-'Kaczmarz'   ,      0 , ... % Toggles whether Kaczmarz mode is on (experimental)
-'KaczScale'  ,      1 , ... % Scaling factor for Tau when using Kaczmarz-type submatrices
 'quitPareto' ,      0 , ... % Exits when pareto curve is reached
 'minPareto'  ,      3 , ... % If quitPareto is on, the minimum number of iterations before checking for quitPareto conditions
 'lineSrchIt' ,      1 , ... % Maximum number of line search iterations for spgLineCurvy, originally 10 ...
@@ -283,7 +282,6 @@ maxMatvec     = max(3,options.maxMatvec);
 weights       = options.weights;
 quitPareto    = options.quitPareto;
 minPareto     = options.minPareto;
-Kaczmarz      = options.Kaczmarz;
 lineSrchIt    = options.lineSrchIt;
 feasSrchIt    = options.feasSrchIt;
 ignorePErr    = options.ignorePErr;
@@ -497,7 +495,7 @@ while 1
           if quitPareto && iter >= minPareto, stat=EXIT_AT_PARETO;end % Chose to exit out of SPGL1 when pareto is reached 
           % Update tau.
           tauOld   = tau;
-          tau      = max(0,tau + (aError1) / (gNorm * options.KaczScale)); % deleted rNorm from numerator. In this algorithm, ony gNorm with contain derivative information. 
+          tau      = max(0,tau + (aError1) / (gNorm)); % deleted rNorm from numerator. In this algorithm, ony gNorm with contain derivative information. 
           nNewton  = nNewton + 1;
           printTau = abs(tauOld - tau) >= 1e-6 * tau; % For log only.
           if tau < tauOld
@@ -506,10 +504,6 @@ while 1
              if ~isempty(x)
                  x = project(x,tau);
              end
-          end
-          % See if new rows need to be chosen for Kaczmarz
-          if Kaczmarz
-              A([],'new_rows');
           end
        end
     end
