@@ -1,6 +1,9 @@
 function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 
-%SPGL1  Solve nonlinear basis pursuit, nonlinear basis pursuit denoise, and nonlinear LASSO
+%SPGL1  Solve regularized composite programs, including 
+% a) basis pursuit, basis pursuit denoise and lasso
+% b) nonlinear versions of above problems, where forward model is nonlinear
+% c) robust penalty on misfit, including huber and students t
 %
 % [x, r, g, info] = spgl1(A,  b, tau, sigma, x, options, params )
 % 
