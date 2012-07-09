@@ -1,26 +1,33 @@
-function [x,r,g,info] = spgl1( A, b, tau, sigma, x, options )
-% Sasha made a change
-%SPGL1  Solve basis pursuit, basis pursuit denoise, and LASSO
+function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
+
+%SPGL1  Solve nonlinear basis pursuit, nonlinear basis pursuit denoise, and nonlinear LASSO
 %
-% [x, r, g, info] = spgl1(A, b, tau, sigma, x0, options)
-%
+% [x, r, g, info] = spgl1(A,  b, tau, sigma, x, options, params )
+% 
+% Forward models that are not spot operators should be put into params.funForward. 
+% 
 % ---------------------------------------------------------------------
-% Solve the basis pursuit denoise (BPDN) problem
+% Solve the uber-generalized basis pursuit denoise (BPDN) problem
 %
-% (BPDN)   minimize  ||x||_1  subj to  ||Ax-b||_2 <= sigma,
+% (BPDN)   minimize  ||x||  subj to  h(b - f(x)) <= sigma,
 %
-% or the l1-regularized least-squares problem
+% or the regularized least-squares problem
 %
-% (LASSO)  minimize  ||Ax-b||_2  subj to  ||x||_1 <= tau.
+% (LASSO)  minimize  h(b - f(x))  subj to  ||x|| <= tau.
 % ---------------------------------------------------------------------
 %
 % INPUTS
 % ======
-% A        is an m-by-n matrix, explicit or an operator.
-%          If A is a function, then it must have the signature
+
+% funFoward   function handle for f(x) alone, with signature
+%          [f] = funForward(x)  and 
+%          [gv] = funForward(x, v)
+%           gv returns the action of the gradient of f on a vector. 
 %
-%          y = A(x,mode)   if mode == 1 then y = A x  (y is m-by-1);
-%                          if mode == 2 then y = A'x  (y is n-by-1).
+% funPenalty  function handle for h(r) alone, with signature
+%          [f, g] = funPenalty(r)
+%
+%
 %
 % b        is an m-vector.
 % tau      is a nonnegative scalar; see (LASSO).
@@ -37,8 +44,8 @@ function [x,r,g,info] = spgl1( A, b, tau, sigma, x, options )
 % OUTPUTS
 % =======
 % x        is a solution of the problem
-% r        is the residual, r = b - Ax
-% g        is the gradient, g = -A'r
+% r        is the residual, r = b - f(x)
+% g        is the gradient, g = \nabla h(b - f(x))
 % info     is a structure with the following information:
 %          .tau     final value of tau (see sigma above)
 %          .rNorm   two-norm of the optimal residual
@@ -53,8 +60,8 @@ function [x,r,g,info] = spgl1( A, b, tau, sigma, x, options )
 %                   = 7 error: found suboptimal BP solution
 %                   = 8 error: too many matrix-vector products
 %          .time    total solution time (seconds)
-%          .nProdA  number of multiplications with A
-%          .nProdAt number of multiplications with A'
+%          .nProdA  number of function evaluations
+%          .nProdAt number of gradient evaluations
 %
 % OPTIONS
 % =======
@@ -67,6 +74,8 @@ function [x,r,g,info] = spgl1( A, b, tau, sigma, x, options )
 %        .optTol      Optimality tolerance (default is 1e-4).
 %        .decTol      Larger decTol means more frequent Newton updates.
 %        .subspaceMin 0=no subspace minimization, 1=subspace minimization.
+%        .quitPareto  0=normal execution, 1=forces an exit when the pareto curve is reached
+%        .minPareto   Minimum number of spgl1 iterations before checking for quitPareto
 %
 % EXAMPLE
 % =======
@@ -83,6 +92,8 @@ function [x,r,g,info] = spgl1( A, b, tau, sigma, x, options )
 %  Michael P. Friedlander (mpf@cs.ubc.ca)
 %    Scientific Computing Laboratory (SCL)
 %    University of British Columbia, Canada.
+%  Aleksandr Aravkin (saravkin@eos.ubc.ca)
+%  CS & EOS, UBC
 %
 % BUGS
 % ====
@@ -107,9 +118,25 @@ function [x,r,g,info] = spgl1( A, b, tau, sigma, x, options )
 % 23 Feb 08: Fixed bug in one-norm projection using weights. Thanks
 %            to Xiangrui Meng for reporting this bug.
 % 26 May 08: The simple call spgl1(A,b) now solves (BPDN) with sigma=0.
-    
-%   spgl1.m
-%   $Id: spgl1.m 1407 2009-06-30 20:00:54Z ewout78 $
+%
+% 18 Feb 10: Code branched to SPGL1-SLIM to include custom features:
+%               -added option to force exit when Pareto curve is reached
+%               -included ability to handle Kaczmarz operators.
+%               -hacked out the linesearch fail conditions using a large limit. 
+%            Tim Lin (timtylin@gmail.com).
+% 03 May 10: Added capabilities to work on distributed vectors. Added options for
+%            parallelized capabilities, max line-search iterations.
+% 20 May 10: Made minPareto a user-configurable condition
+% 20 Jul 10: Improved performance of spgLine for costly Aprod
+% 17 Nov 10: Made default allowance for feasible line-search artificially large to allow for badly scaled problems
+% 20 Dec 10: Added option to allow L1-projection failures to issue warning istead of error (ignorePErr)
+% 27 Apr 11: Some optimizations via the following:
+%               -L1 projection on distributed arrays no longer uses sorting
+%               -disabled restoring to xBest to save memory space
+%               -disabled subspace minimizaiton permanately to avoid computing active set to save space
+%               -re-written some expressions to avoid calculating imtermediate results
+% 03 May 11: Further memory optimizations, calculated many quantites in-place to avoid temporary allocation of memory, made oneProjector nested
+
 %
 %   ----------------------------------------------------------------------
 %   This file is part of SPGL1 (Spectral Projected-Gradient for L1).
@@ -133,25 +160,50 @@ function [x,r,g,info] = spgl1( A, b, tau, sigma, x, options )
 %   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301
 %   USA
 %   ----------------------------------------------------------------------
-REVISION = '$Revision: 1017 $';
-DATE     = '$Date: 2008-06-16 22:43:07 -0700 (Mon, 16 Jun 2008) $';
-REVISION = REVISION(11:end-1);
+REVISION = '$Rev: 78 $';
+DATE     = '$Date: 2012-07-05 16:16:15 -0700 (Thu, 05 Jul 2012) $';
+REVISION = REVISION(6:end-1);
 DATE     = DATE(35:50);
+
+explicit = ~(isa(A,'function_handle'));
+
+if isa(A, 'opSpot') || explicit
+   funForward = @SpotFunForward; 
+   linear = 1; 
+   n = size(A, 2);
+else
+   funForward = A;
+   linear = 0;    
+   n = length(x);
+end
+
+
+
+
+% Set to true to display debug flags
+PRINT_DEBUG_FLAGS = false;
+
+% A check to verify that this is the SLIM version of SPGl1
+%if isstr(A) && strcmp(A,'is_SLIM_version')
+%    x = 1;
+%    return
+%end
 
 tic;              % Start your watches!
 m = length(b);
-
 %----------------------------------------------------------------------
 % Check arguments. 
 %----------------------------------------------------------------------
+
+if ~exist('params', 'var'), params = []; end
 if ~exist('options','var'), options = []; end
 if ~exist('x','var'), x = []; end
 if ~exist('sigma','var'), sigma = []; end
 if ~exist('tau','var'), tau = []; end
 
-if nargin < 2 || isempty(b) || isempty(A)
-   error('At least two arguments are required');
-elseif isempty(tau) && isempty(sigma)
+%if nargin < 2 || isempty(b) || isempty(A)
+%   error('At least two arguments are required');
+if isempty(tau) && isempty(sigma)
    tau = 0;
    sigma = 0;
    singleTau = false;
@@ -173,7 +225,6 @@ defaultopts = spgSetParms(...
 'iterations' ,   10*m , ... % Max number of iterations
 'nPrevVals'  ,      3 , ... % Number previous func values for linesearch
 'bpTol'      ,  1e-06 , ... % Tolerance for basis pursuit solution 
-'lsTol'      ,  1e-06 , ... % Least-squares optimality tolerance
 'optTol'     ,  1e-04 , ... % Optimality tolerance
 'decTol'     ,  1e-04 , ... % Req'd rel. change in primal obj. for Newton
 'stepMin'    ,  1e-16 , ... % Minimum spectral step
@@ -184,9 +235,18 @@ defaultopts = spgSetParms(...
 'iscomplex'  ,    NaN , ... % Flag set to indicate complex problem
 'maxMatvec'  ,    Inf , ... % Maximum matrix-vector multiplies allowed
 'weights'    ,      1 , ... % Weights W in ||Wx||_1
+'Kaczmarz'   ,      0 , ... % Toggles whether Kaczmarz mode is on (experimental)
+'KaczScale'  ,      1 , ... % Scaling factor for Tau when using Kaczmarz-type submatrices
+'quitPareto' ,      0 , ... % Exits when pareto curve is reached
+'minPareto'  ,      3 , ... % If quitPareto is on, the minimum number of iterations before checking for quitPareto conditions
+'lineSrchIt' ,      1 , ... % Maximum number of line search iterations for spgLineCurvy, originally 10 ...
+'feasSrchIt' ,  10000 , ... % Maximum number of feasible direction line search iteraitons, originally 10 ...
+'ignorePErr' ,      0 , ... % Ignores projections error by issuing a warning instead of an error ...
 'project'    , @NormL1_project , ...
 'primal_norm', @NormL1_primal  , ...
-'dual_norm'  , @NormL1_dual      ...
+'dual_norm'  , @NormL1_dual    , ...
+'funPenalty' , @funLS          , ...
+'proxy'      ,      0            ... % is there a proxy for the norm, or is it the true norm
    );
 options = spgSetParms(defaultopts, options);
 
@@ -195,7 +255,6 @@ logLevel      = options.verbosity;
 maxIts        = options.iterations;
 nPrevVals     = options.nPrevVals;
 bpTol         = options.bpTol;
-lsTol         = options.lsTol;
 optTol        = options.optTol;
 decTol        = options.decTol;
 stepMin       = options.stepMin;
@@ -204,8 +263,17 @@ activeSetIt   = options.activeSetIt;
 subspaceMin   = options.subspaceMin;
 maxMatvec     = max(3,options.maxMatvec);
 weights       = options.weights;
+quitPareto    = options.quitPareto;
+minPareto     = options.minPareto;
+Kaczmarz      = options.Kaczmarz;
+lineSrchIt    = options.lineSrchIt;
+feasSrchIt    = options.feasSrchIt;
+ignorePErr    = options.ignorePErr;
+params.proxy  = options.proxy;
+funPenalty    = options.funPenalty;
 
-maxLineErrors = 10;     % Maximum number of line-search failures.
+% maxLineErrors TEMPORARILY DISABLED to prevent very large scaling issue to throw off algorithm
+maxLineErrors = Inf;     % Maximum number of line-search failures.
 pivTol        = 1e-12;  % Threshold for significant Newton step.
 
 %----------------------------------------------------------------------
@@ -217,7 +285,7 @@ lastFv        = -inf(nPrevVals,1);  % Last m function values.
 nLineTot      = 0;                  % Total no. of linesearch steps.
 printTau      = false;
 nNewton       = 0;
-bNorm         = norm(b,2);
+bNorm         = funPenalty(b, params);
 stat          = false;
 timeProject   = 0;
 timeMatProd   = 0;
@@ -227,26 +295,6 @@ subspace      = false;              % Flag if did subspace min in current itn.
 stepG         = 1;                  % Step length for projected gradient.
 testUpdateTau = 0;                  % Previous step did not update tau
 
-% Determine initial x, vector length n, and see if problem is complex
-explicit = ~(isa(A,'function_handle'));
-if isempty(x)
-   if isnumeric(A)
-      n = size(A,2);
-      realx = isreal(A) && isreal(b);
-   else
-      x = Aprod(b,2);
-      n = length(x);
-      realx = isreal(x) && isreal(b);
-   end
-   x = zeros(n,1);
-else
-   n     = length(x);
-   realx = isreal(x) && isreal(b);
-end
-if isnumeric(A), realx = realx && isreal(A); end;
-
-% Override options when options.iscomplex flag is set
-if (~isnan(options.iscomplex)), realx = (options.iscomplex == 0); end
 
 % Check if all weights (if any) are strictly positive. In previous
 % versions we also checked if the number of weights was equal to
@@ -269,11 +317,6 @@ if bNorm <= sigma
    tau = 0;  singleTau = true;
 end 
   
-% Don't do subspace minimization if x is complex.
-if ~realx && subspaceMin
-   printf('W: Subspace minimization disabled when variables are complex.\n');
-   subspaceMin = false;
-end
 
 % Pre-allocate iteration info vectors
 xNorm1 = zeros(min(maxIts,10000),1);
@@ -282,22 +325,23 @@ lambda = zeros(min(maxIts,10000),1);
 
 % Exit conditions (constants).
 EXIT_ROOT_FOUND    = 1;
-EXIT_BPSOL_FOUND   = 2;
-EXIT_LEAST_SQUARES = 3;
+EXIT_BPSOL1_FOUND  = 2;
+EXIT_BPSOL2_FOUND  = 3;
 EXIT_OPTIMAL       = 4;
 EXIT_ITERATIONS    = 5;
 EXIT_LINE_ERROR    = 6;
 EXIT_SUBOPTIMAL_BP = 7;
 EXIT_MATVEC_LIMIT  = 8;
 EXIT_ACTIVE_SET    = 9; % [sic]
+EXIT_AT_PARETO     = 10;
 
 %----------------------------------------------------------------------
 % Log header.
 %----------------------------------------------------------------------
 printf('\n');
-printf(' %s\n',repmat('=',1,80));
-printf(' SPGL1  v.%s (%s)\n', REVISION, DATE);
-printf(' %s\n',repmat('=',1,80));
+printf(' %s\n',repmat('=',1,82));
+printf(' SPGL1_SLIM v.%s (%s) based on v.1017\n', REVISION, DATE);
+printf(' %s\n',repmat('=',1,82));
 printf(' %-22s: %8i %4s'   ,'No. rows'          ,m       ,'');
 printf(' %-22s: %8i\n'     ,'No. columns'       ,n          );
 printf(' %-22s: %8.2e %4s' ,'Initial tau'       ,tau     ,'');
@@ -321,27 +365,51 @@ else
    printf(logH,'Iter','Objective','Relative Gap','Rel Error',...
           'gNorm','stepG','nnzX','nnzG','tau');
 end    
-    
+
+
+
+
+%% SASHA's notes: 
+% 1) rNorm and f are the same now. 
+% 2) for now input argument x is required
+
+
+
 % Project the starting point and evaluate function and gradient.
-x         = project(x,tau);
-r         = b - Aprod(x,1);  % r = b - Ax
-g         =   - Aprod(r,2);  % g = -A'r
-f         = r'*r / 2; 
+if isempty(x)
+    r         = b;  % r = b - Ax
+    [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
+%    g         = -Aprod(r,2);  % g = -A'r
+%    f         = norm(r)^2 / 2;
+    dx        = project(-g, tau);
+else
+    x         = project(x,tau);
+    r         = b - funForward(x, [], params);  % r = b - f(x)
+    nProdA = nProdA + 1;
+    [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
+%    [f g g2]     = funComposite(x, b, funForward, funPenalty, params);
+%    g         =   - Aprod(r,2);  % g = -A'r
+%    f         = norm(r)^2 / 2;
+    dx        = project(x - g, tau) - x;
+end
 
-% Required for nonmonotone strategy.
-lastFv(1) = f;
-fBest     = f;
-xBest     = x;
-fOld      = f;
-
-% Compute projected gradient direction and initial steplength.
-dx     = project(x - g, tau) - x;
+% Compute initial steplength.
 dxNorm = norm(dx,inf);
 if dxNorm < (1 / stepMax)
    gStep = stepMax;
 else
    gStep = min( stepMax, max(stepMin, 1/dxNorm) );
 end
+
+% Required for nonmonotone strategy.
+lastFv(1) = f;
+fBest     = f;
+% xBest     = x;
+fOld      = f;
+
+dispFlag('fin Init')
+
+clear dx
 
 %----------------------------------------------------------------------
 % MAIN LOOP.
@@ -353,25 +421,29 @@ while 1
     %------------------------------------------------------------------
 
     % Compute quantities needed for log and exit conditions.
-    gNorm   = options.dual_norm(-g,weights);
-    rNorm   = norm(r, 2);
-    gap     = r'*(r-b) + tau*gNorm;
+    if(options.proxy)
+        gNorm   = undist(options.dual_norm(g2,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+    else
+        gNorm   = undist(options.dual_norm(g,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+    end
+    %    g2Norm  = undist(options.dual_norm(g2,weights,params));
+    rNorm   = f;  % rNorm and f are exactly the same. 
+    gap     = dot(r,(r-b)) + tau*gNorm; % Still use this expression for duality gap. Note that f and rNorm are the same now. 
     rGap    = abs(gap) / max(1,f);
     aError1 = rNorm - sigma;
-    aError2 = f - sigma^2 / 2;
+    aError2 = rNorm^2 - sigma^2; % Why not? 
+%    aError2 = f - sigma^2 / 2;
     rError1 = abs(aError1) / max(1,rNorm);
     rError2 = abs(aError2) / max(1,f);
-
-    % Count number of consecutive iterations with identical support.
-    nnzOld = nnzIdx;
-    [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options);
-
-    if nnzDiff
-       nnzIter = 0;
+    
+    dispFlag('fin CompConditions')
+    
+    if isempty(x)
+        nnzX    = 0;
     else
-       nnzIter = nnzIter + 1;
-       if nnzIter >= activeSetIt, stat=EXIT_ACTIVE_SET; end
+        nnzX    = sum(abs(x) >= min(.1,10*options.optTol));
     end
+    nnzG    = 0; % this is a temporary measure to make sure we don't destroy the log formatting
     
     % Single tau: Check if we're optimal.
     % The 2nd condition is there to guard against large tau.
@@ -383,27 +455,20 @@ while 1
     % Multiple tau: Check if found root and/or if tau needs updating.
     else
        
-       % Test if a least-squares solution has been found
-       if gNorm <= lsTol * rNorm
-          stat = EXIT_LEAST_SQUARES;
-       end
-       
        if rGap <= max(optTol, rError2) || rError1 <= optTol
           % The problem is nearly optimal for the current tau.
           % Check optimality of the current root.
           test1 = rNorm       <=   bpTol * bNorm;
-       %  test2 = gNorm       <=   bpTol * rNorm;
+          test2 = gNorm       <=   bpTol * rNorm;
           test3 = rError1     <=  optTol;
           test4 = rNorm       <=  sigma;
           
-          if test4, stat=EXIT_SUBOPTIMAL_BP;end  % Found suboptimal BP sol.
-          if test3, stat=EXIT_ROOT_FOUND;   end  % Found approx root.
-          if test1, stat=EXIT_BPSOL_FOUND;  end  % Resid minim'zd -> BP sol.
-        % 30 Jun 09: Large tau could mean large rGap even near LS sol.
-        %            Move LS check out of this if statement.
-        % if test2, stat=EXIT_LEAST_SQUARES; end % Gradient zero -> BP sol.
+          if test4, stat=EXIT_SUBOPTIMAL_BP;end % Found suboptimal BP sol.
+          if test3, stat=EXIT_ROOT_FOUND;   end % Found approx root.
+          if test2, stat=EXIT_BPSOL2_FOUND; end % Gradient zero -> BP sol.
+          if test1, stat=EXIT_BPSOL1_FOUND; end % Resid minim'zd -> BP sol.
        end
-       
+
        testRelChange1 = (abs(f - fOld) <= decTol * f);
        testRelChange2 = (abs(f - fOld) <= 1e-1 * f * (abs(rNorm - sigma)));
        testUpdateTau  = ((testRelChange1 && rNorm >  2 * sigma) || ...
@@ -411,15 +476,22 @@ while 1
                          ~stat && ~testUpdateTau;
        
        if testUpdateTau
+          if quitPareto && iter >= minPareto, stat=EXIT_AT_PARETO;end % Chose to exit out of SPGL1 when pareto is reached 
           % Update tau.
           tauOld   = tau;
-          tau      = max(0,tau + (rNorm * aError1) / gNorm);
+          tau      = max(0,tau + (aError1) / (gNorm * options.KaczScale)); % deleted rNorm from numerator. In this algorithm, ony gNorm with contain derivative information. 
           nNewton  = nNewton + 1;
           printTau = abs(tauOld - tau) >= 1e-6 * tau; % For log only.
           if tau < tauOld
              % The one-norm ball has decreased.  Need to make sure that the
              % next iterate if feasible, which we do by projecting it.
-             x = project(x,tau);
+             if ~isempty(x)
+                 x = project(x,tau);
+             end
+          end
+          % See if new rows need to be chosen for Kaczmarz
+          if Kaczmarz
+              A([],'new_rows');
           end
        end
     end
@@ -428,6 +500,7 @@ while 1
     if ~stat  &&  iter >= maxIts
         stat = EXIT_ITERATIONS;
     end
+    dispFlag('fin CheckConverge')
 
     %------------------------------------------------------------------
     % Print log, update history and act on exit conditions.
@@ -437,12 +510,12 @@ while 1
        if printTau, tauFlag = sprintf(' %13.7e',tau);   end
        if subspace, subFlag = sprintf(' S %2i',itnLSQR); end
        if singleTau
-          printf(logB,iter,rNorm,rGap,gNorm,log10(stepG),nnzX,nnzG);
+          printf(logB,undist(iter),undist(rNorm),undist(rGap),undist(gNorm),log10(undist(stepG)),undist(nnzX),undist(nnzG));
           if subspace
              printf('  %s',subFlag);
           end
        else
-          printf(logB,iter,rNorm,rGap,rError1,gNorm,log10(stepG),nnzX,nnzG);
+          printf(logB,undist(iter),undist(rNorm),undist(rGap),undist(rError1),undist(gNorm),log10(undist(stepG)),undist(nnzX),undist(nnzG));
           if printTau || subspace
              printf(' %s',[tauFlag subFlag]);
           end
@@ -453,7 +526,11 @@ while 1
     subspace = false;
     
     % Update history info
-    xNorm1(iter+1) = options.primal_norm(x,weights);
+    if isempty(x)
+        xNorm1(iter+1) = 0;
+    else
+        xNorm1(iter+1) = options.primal_norm(x,weights);
+    end
     rNorm2(iter+1) = rNorm;
     lambda(iter+1) = gNorm;
     
@@ -463,21 +540,49 @@ while 1
     % Iterations begin here.
     %==================================================================
     iter = iter + 1;
-    xOld = x;  fOld = f;  gOld = g;  rOld = r;
-
+    xOld = x;  fOld = f; rOld = r; % gOld update moved down to coincide with gradient update
     try
        %---------------------------------------------------------------
        % Projected gradient step and linesearch.
        %---------------------------------------------------------------
-       [f,x,r,nLine,stepG,lnErr] = ...
-           spgLineCurvy(x,gStep*g,max(lastFv),@Aprod,b,@project,tau);
+       dispFlag('begin LineSrch')
+
+       [nLine,stepG,lnErr] = spgLineCurvy(max(lastFv));
+       dispFlag('fin LineSrch');
        nLineTot = nLineTot + nLine;
        if lnErr
           %  Projected backtrack failed. Retry with feasible dir'n linesearch.
+          dispFlag('begin FeasLineSrch')
+          clear x
+          clear r
           x    = xOld;
-          dx   = project(x - gStep*g, tau) - x;
-          gtd  = g'*dx;
-          [f,x,r,nLine,lnErr] = spgLine(f,x,dx,gtd,max(lastFv),@Aprod,b);
+          
+          % In-place scaling of gradient and updating of x to save memory
+          if ~isempty(xOld)
+              dx = project(xOld - gStep.*g, tau) - xOld;
+          else
+              dx = project(-gStep .* g, tau);
+          end
+          
+          gtd  = dot(g,dx);
+
+          if(linear)
+              [f,step,r,nLine,lnErr, localProdA] = spgLine(f,dx,gtd,rOld,max(lastFv), funForward, funPenalty,  params, b,feasSrchIt, linear);
+          else 
+              [f,step,r,nLine,lnErr, localProdA] = spgLine(f,dx,gtd,x,max(lastFv), funForward, funPenalty,  params, b,feasSrchIt, linear);
+          end
+          nProdA = nProdA + localProdA;
+          dispFlag('fin FeasLineSrch')
+          
+          if isempty(xOld)
+              x = step*dx;
+          else
+              x = xOld + step*dx;
+          end
+          clear dx
+          
+          x = project(x, tau);
+          
           nLineTot = nLineTot + nLine;
        end
        if lnErr
@@ -491,83 +596,77 @@ while 1
              maxLineErrors = maxLineErrors - 1;
           end
        end
-
-       %---------------------------------------------------------------
-       % Subspace minimization (only if active-set change is small).
-       %---------------------------------------------------------------
-       doSubspaceMin = false;
-       if subspaceMin
-          g = - Aprod(r,2);
-          [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzOld,options);
-          if ~nnzDiff
-              if nnzX == nnzG, itnMaxLSQR = 20;
-              else             itnMaxLSQR = 5;
-              end
-              nnzIdx = abs(x) >= optTol; 
-              doSubspaceMin = true;
-          end
-       end
-
-       if doSubspaceMin
-     
-          % LSQR parameters
-          damp       = 1e-5;
-          aTol       = 1e-1;
-          bTol       = 1e-1;
-          conLim     = 1e12;
-          showLSQR   = 0;
        
-          ebar   = sign(x(nnzIdx));
-          nebar  = length(ebar);
-          Sprod  = @(y,mode)LSQRprod(@Aprod,nnzIdx,ebar,n,y,mode);
+       primNorm_x = undist(options.primal_norm(x,weights));
+       targetNorm = tau+optTol;
        
-          [dxbar, istop, itnLSQR] = ...
-             lsqr(m,nebar,Sprod,r,damp,aTol,bTol,conLim,itnMaxLSQR,showLSQR);
-              
-          itnTotLSQR = itnTotLSQR + itnLSQR;
-       
-          if istop ~= 4  % LSQR iterations successful. Take the subspace step.
-             % Push dx back into full space:  dx = Z dx.
-             dx = zeros(n,1);
-             dx(nnzIdx) = dxbar - (1/nebar)*(ebar'*dxbar)*dxbar;
-
-             % Find largest step to a change in sign.
-             block1 = nnzIdx  &  x < 0  &  dx > +pivTol;
-             block2 = nnzIdx  &  x > 0  &  dx < -pivTol;
-             alpha1 = Inf; alpha2 = Inf;
-             if any(block1), alpha1 = min(-x(block1) ./ dx(block1)); end
-             if any(block2), alpha2 = min(-x(block2) ./ dx(block2)); end
-             alpha = min([1  alpha1  alpha2]);
-             ensure(alpha >= 0);
-             ensure(ebar'*dx(nnzIdx) <= optTol);          
-          
-             % Update variables.
-             x    = x + alpha*dx;
-             r    = b - Aprod(x,1);
-             f    = r'*r / 2;
-             subspace = true;
-          end
+       if ignorePErr
+            if primNorm_x > targetNorm
+ %               warning('Primal norm of projected x is larger than expected, project again to be safe')
+%                primNorm_x
+ %               targetNorm
+            end
+       else
+            ensure(primNorm_x <= targetNorm);
        end
        
-       ensure(options.primal_norm(x,weights) <= tau+optTol);
-
+       dispFlag('fin UpdateX')
+       
        %---------------------------------------------------------------
        % Update gradient and compute new Barzilai-Borwein scaling.
        %---------------------------------------------------------------
-       g    = - Aprod(r,2);
-       s    = x - xOld;
+%        if isempty(xOld)
+%            s    = x;
+%        else
+%            xOld    = x - xOld; % in-place calculating of s
+%            s       = xOld;
+%            clear xOld
+%        end
+       
+       gOld = g;
+       
+       
+       % g    = - Aprod(r,2);
+       [f g g2] = funCompositeR(r, funForward, funPenalty, params); 
+       if(isempty(xOld))
+           xOld = x;
+       else
+            xOld    = x - xOld;  % xOld plays the role of s.
+       end
        y    = g - gOld;
-       sts  = s'*s;
-       sty  = s'*y;
+       sts  = dot(xOld,xOld);
+       sty  = dot(xOld,y);
+       
+       clear xOld;
+       clear gOld;
+       
+       %[f g g2] = funCompositeR(r, funForward, funPenalty, params); 
+      %[f g g2] = funComposite(x, b, funForward, funPenalty, params); % MAKE  SURE X IS CURRENT HERE
+      % [g ] = funForward(x, r, params);
+      %nProdAt = nProdAt + 1;
+      
+      
+       %g    = - Aprod(r,2);
+       %y    = g - gOld;
+       %clear gOld
+       
+      % sts  = norm(s)^2;
+      % sty  = dot(s,y);
        if   sty <= 0,  gStep = stepMax;
        else            gStep = min( stepMax, max(stepMin, sts/sty) );
        end
        
-    catch err % Detect matrix-vector multiply limit error
+       dispFlag('fin CompScaling')
+       
+       clear s
+       clear y
+       
+    catch % Detect matrix-vector multiply limit error WARNING: the latest round of optimizations may have broke this, do testing to veriify
+       err = lasterror;
        if strcmp(err.identifier,'SPGL1:MaximumMatvec')
          stat = EXIT_MATVEC_LIMIT;
          iter = iter - 1;
-         x = xOld;  f = fOld;  g = gOld;  r = rOld;
+         x = xOld;  f = fOld;  r = rOld;
          break;
        else
          rethrow(err);
@@ -577,26 +676,29 @@ while 1
     %------------------------------------------------------------------
     % Update function history.
     %------------------------------------------------------------------
-    if singleTau || f > sigma^2 / 2 % Don't update if superoptimal.
-       lastFv(mod(iter,nPrevVals)+1) = f;
+    if singleTau || f > sigma % Don't update if superoptimal.
+       lastFv(mod(iter,nPrevVals)+1) = undist(f);
        if fBest > f
           fBest = f;
-          xBest = x;
+          % xBest = x;
        end
     end
+    
 
 end % while 1
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % Restore best solution (only if solving single problem).
 if singleTau && f > fBest
-   rNorm = sqrt(2*fBest);
-   printf('\n Restoring best iterate to objective %13.7e\n',rNorm);
-   x = xBest;
-   r = b - Aprod(x,1);
-   g =   - Aprod(r,2);
-   gNorm = options.dual_norm(g,weights);
-   rNorm = norm(r,  2);
+    %% Restoring of xBest is disabled to save memory for large problems
+    printf('NOTE: solution not actually optimal, best objective value is %13.7e',sqrt(2*fBest))
+    % rNorm = sqrt(2*fBest);
+    % printf('\n Restoring best iterate to objective %13.7e\n',rNorm);
+    % x = xBest;
+    % r = b - Aprod(x,1);
+    % g =   - Aprod(r,2);
+    % gNorm = options.dual_norm(g,weights);
+    % rNorm = norm(r,  2);
 end
 
 % Final cleanup before exit.
@@ -628,10 +730,8 @@ switch (stat)
       printf('\n ERROR EXIT -- Too many iterations\n');
    case EXIT_ROOT_FOUND
       printf('\n EXIT -- Found a root\n');
-   case {EXIT_BPSOL_FOUND}
+   case {EXIT_BPSOL1_FOUND, EXIT_BPSOL2_FOUND}
       printf('\n EXIT -- Found a BP solution\n');
-   case {EXIT_LEAST_SQUARES}
-      printf('\n EXIT -- Found a least-squares solution\n');
    case EXIT_LINE_ERROR
       printf('\n ERROR EXIT -- Linesearch error (%i)\n',lnErr);
    case EXIT_SUBOPTIMAL_BP
@@ -640,6 +740,8 @@ switch (stat)
       printf('\n EXIT -- Maximum matrix-vector operations reached\n');
    case EXIT_ACTIVE_SET
       printf('\n EXIT -- Found a possible active set\n');
+   case EXIT_AT_PARETO
+      printf('\n EXIT -- Reached the pareto curve\n');
    otherwise
       error('Unknown termination condition\n');
 end
@@ -658,28 +760,34 @@ printf('\n');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % NESTED FUNCTIONS.  These share some vars with workspace above.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%% This function is only activated if a spot operator is passed in
+function f = SpotFunForward(x, g, params)
+if isempty(g)
+    f = A*x;
+else
+    f = A'*g;    
+end
+end
+
+
+
+function [f g1 g2] = funCompositeR(r, funForward, funPenalty, params)
     
-function z = Aprod(x,mode)
-   if (nProdA + nProdAt >= maxMatvec)
-     error('SPGL1:MaximumMatvec','');
-   end
-     
-   tStart = toc;
-   if mode == 1
-      nProdA = nProdA + 1;
-      if   explicit, z = A*x;
-      else           z = A(x,1);
-      end
-   elseif mode == 2
-      nProdAt = nProdAt + 1;
-      if   explicit, z = A'*x;
-      else           z = A(x,2);
-      end
-   else
-      error('Wrong mode!');
-   end
-   timeMatProd = timeMatProd + (toc - tStart);
-end % function Aprod
+    tStart = toc;
+    nProdAt = nProdAt + 1;
+    [f v] = funPenalty(r, params);
+    if(~options.proxy)
+        g1 = funForward(x, -v, params);
+        g2 = 0;
+    else
+        [g1 g2] = funForward(x, -v, params);   
+    end
+    timeMatProd = timeMatProd + (toc - tStart);
+end
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -692,12 +800,104 @@ end % function printf
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function x = project(x, tau)
+   dispFlag('begin Project')
+    
    tStart      = toc;
-
-   x = options.project(x,weights,tau);
-   
+   x = options.project(x,weights,tau); 
    timeProject = timeProject + (toc - tStart);
+   
+   dispFlag('fin Project')
 end % function project
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function [iterG,stepG,errG] = ...
+    spgLineCurvy(fMax)
+% Projected backtracking linesearch.
+% On entry,
+% g  is the (possibly scaled) steepest descent direction.
+
+EXIT_PBLINE_CONVERGED  = 0;
+EXIT_PBLINE_ITERATIONS = 1;
+EXIT_PBLINE_NODESCENT  = 2;
+gamma  = 1e-4;
+stepG   =  1;
+scale  =  1;      % Safeguard scaling.  (See below.)
+nSafe  =  0;      % No. of safeguarding steps.
+iterG   =  0;
+debug  =  false;  % Set to true to enable log.
+% n      =  length(x);
+
+if debug
+   fprintf(' %5s  %13s  %13s  %13s  %8s\n',...
+           'LSits','fNew','step','gts','scale');  
+end
+
+if isempty(xOld)
+    gtxOld = 0;
+else
+    gtxOld = gStep * dot(g,xOld);
+end
+
+while 1
+    
+    % Calculate scaling of gradient
+    g_scale = -stepG*scale*gStep;
+    
+    % Evaluate trial point
+    clear x
+    if isempty(xOld)
+        x     = project(g_scale .* g, tau);
+    else
+        x     = project(xOld + g_scale .* g, tau);
+    end
+    
+    % Evaluate function value
+    clear r
+    r     = b - funForward(x, [], params);
+    nProdA = nProdA + 1;
+    f     = funPenalty(r, params);
+   % [f g] = funComposite(x, b, funForward, funPenalty, params);
+    %f     = norm(r)^2 / 2;
+    gtx   = gStep * dot(g,x);
+    gts   = scale * (gtx - gtxOld);
+    if gts >= 0 % Should we check real and complex parts individually?
+       errG = EXIT_PBLINE_NODESCENT;
+       break
+    end
+
+    if debug
+        fprintf(' LS %2i  %13.7e  %13.7e  %13.6e  %8.1e\n',...
+                iterG,f,stepG,undist(gts),scale);
+    end
+    
+    % 03 Aug 07: If gts is complex, then should be looking at -abs(gts).
+    if f < fMax - gamma*stepG*abs(gts)  % Sufficient descent condition.
+       errG = EXIT_PBLINE_CONVERGED;
+       break
+    elseif iterG >= lineSrchIt                 % Too many linesearch iterations.
+       errG = EXIT_PBLINE_ITERATIONS;
+       break
+    end
+    
+    % New linesearch iteration.
+    iterG = iterG + 1;
+    stepG = stepG / 2;
+    
+end % while 1
+    
+end % function spgLineCurvy
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function dispFlag(flagMsg)
+    
+    if PRINT_DEBUG_FLAGS
+        disp(flagMsg)
+        pause(5)
+    end
+    
+end % function dispFlag
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % End of nested functions.
@@ -709,6 +909,8 @@ end % function spg
 % PRIVATE FUNCTIONS.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+
 function [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options)
 % Find the current active set.
 % nnzX    is the number of nonzero x.
@@ -717,7 +919,7 @@ function [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options)
 % nnzDiff is the no. of elements that changed in the support.
   xTol    = min(.1,10*options.optTol);
   gTol    = min(.1,10*options.optTol);
-  gNorm   = options.dual_norm(g,options.weights);
+  gNorm   = options.dual_norm(g,options.weights, params);
   nnzOld  = nnzIdx;
 
   % Reduced costs for postive & negative parts of x.
@@ -759,30 +961,49 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [fNew,xNew,rNew,iter,err] = spgLine(f,x,d,gtd,fMax,Aprod,b)
+function [fNew,step,rNew,iter,err, localProdA] = spgLine(f,d,gtd,x,fMax,funForward, funPenalty, params, b,feasSrchIt,linear)
 % Nonmonotone linesearch.
 
+localProdA = 0;
 EXIT_CONVERGED  = 0;
-EXIT_ITERATIONS = 1;
-maxIts = 10;
+EXIT_LINEITERATIONS = 1;
+maxIts = feasSrchIt;
 step   = 1;
 iter   = 0;
 gamma  = 1e-4;
-gtd    = -abs(gtd); % 03 Aug 07: If gtd is complex,
+gtd    = -abs(undist(gtd)); % 03 Aug 07: If gtd is complex,
                     % then should be looking at -abs(gtd).
+                    
+%Ad = Aprod(d,1);
+
+if(linear)
+   Ad = funForward(d, [], params); 
+   localProdA = localProdA + 1;
+   r = x; %CAREFUL HERE: we are passing in rOld if linear. 
+end
+
 while 1
 
     % Evaluate trial point and function value.
-    xNew = x + step*d;
-    rNew = b - Aprod(xNew,1);
-    fNew = rNew'*rNew / 2;
+    if(linear)
+        rNew = r - step*Ad;
+    else
+        rNew = b - funForward(x + step*d, [], params);
+        localProdA = localProdA + 1;
+    end
+    
+
+    fNew = funPenalty(rNew, params);
+    %fNew = funComposite(x + step*d, b, funForward, funPenalty, params);
+%    rNew = r - step*Ad;
+%    fNew = norm(rNew)^2 / 2;
 
     % Check exit conditions.
     if fNew < fMax + gamma*step*gtd  % Sufficient descent condition.
        err = EXIT_CONVERGED;
        break
     elseif  iter >= maxIts           % Too many linesearch iterations.
-       err = EXIT_ITERATIONS;
+       err = EXIT_LINEITERATIONS;
        break
     end
     
@@ -804,80 +1025,3 @@ end % while 1
 
 end % function spgLine
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-function [fNew,xNew,rNew,iter,step,err] = ...
-    spgLineCurvy(x,g,fMax,Aprod,b,project,tau)
-% Projected backtracking linesearch.
-% On entry,
-% g  is the (possibly scaled) steepest descent direction.
-
-EXIT_CONVERGED  = 0;
-EXIT_ITERATIONS = 1;
-EXIT_NODESCENT  = 2;
-gamma  = 1e-4;
-maxIts = 10;
-step   =  1;
-sNorm  =  0;
-scale  =  1;      % Safeguard scaling.  (See below.)
-nSafe  =  0;      % No. of safeguarding steps.
-iter   =  0;
-debug  =  false;  % Set to true to enable log.
-n      =  length(x);
-
-if debug
-   fprintf(' %5s  %13s  %13s  %13s  %8s\n',...
-           'LSits','fNew','step','gts','scale');  
-end
-   
-while 1
-
-    % Evaluate trial point and function value.
-    xNew     = project(x - step*scale*g, tau);
-    rNew     = b - Aprod(xNew,1);
-    fNew     = rNew'*rNew / 2;
-    s        = xNew - x;
-    gts      = scale * real(g' * s);
-%   gts      = scale * (g' * s);
-    if gts >= 0
-       err = EXIT_NODESCENT;
-       break
-    end
-
-    if debug
-       fprintf(' LS %2i  %13.7e  %13.7e  %13.6e  %8.1e\n',...
-               iter,fNew,step,gts,scale);
-    end
-    
-    % 03 Aug 07: If gts is complex, then should be looking at -abs(gts).
-    % 13 Jul 11: It's enough to use real part of g's (see above).
-    if fNew < fMax + gamma*step*gts
-%   if fNew < fMax - gamma*step*abs(gts)  % Sufficient descent condition.
-       err = EXIT_CONVERGED;
-       break
-    elseif iter >= maxIts                 % Too many linesearch iterations.
-       err = EXIT_ITERATIONS;
-       break
-    end
-    
-    % New linesearch iteration.
-    iter = iter + 1;
-    step = step / 2;
-
-    % Safeguard: If stepMax is huge, then even damped search
-    % directions can give exactly the same point after projection.  If
-    % we observe this in adjacent iterations, we drastically damp the
-    % next search direction.
-    % 31 May 07: Damp consecutive safeguarding steps.
-    sNormOld  = sNorm;
-    sNorm     = norm(s) / sqrt(n);
-    %   if sNorm >= sNormOld
-    if abs(sNorm - sNormOld) <= 1e-6 * sNorm
-       gNorm = norm(g) / sqrt(n);
-       scale = sNorm / gNorm / (2^nSafe);
-       nSafe = nSafe + 1;
-    end
-    
-end % while 1
-
-end % function spgLineCurvy
