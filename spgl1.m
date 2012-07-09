@@ -525,9 +525,9 @@ while 1
           if tau < tauOld
              % The one-norm ball has decreased.  Need to make sure that the
              % next iterate if feasible, which we do by projecting it.
-             if ~isempty(x)
-                 x = project(x,tau);
-             end
+             
+             x = project(x,tau);
+             
           end
        end
     end
