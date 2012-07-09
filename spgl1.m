@@ -439,7 +439,8 @@ while 1
     if(options.proxy)
         gNorm   = undist(options.dual_norm(g2,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
     else
-        gNorm   = undist(options.dual_norm(g,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+        % for now, we assume params only used by proxy formulations
+        gNorm   = undist(options.dual_norm(g,weights)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
     end
     %    g2Norm  = undist(options.dual_norm(g2,weights,params));
     rNorm   = f;  % rNorm and f are exactly the same. 
