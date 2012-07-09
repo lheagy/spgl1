@@ -184,21 +184,6 @@ DATE     = '$Date: 2012-07-05 16:16:15 -0700 (Thu, 05 Jul 2012) $';
 REVISION = REVISION(6:end-1);
 DATE     = DATE(35:50);
 
-explicit = ~(isa(A,'function_handle'));
-
-if isa(A, 'opSpot') || explicit
-   funForward = @SpotFunForward; 
-   linear = 1; 
-   n = size(A, 2);
-else
-   funForward = A;
-   linear = 0;    
-   n = length(x);
-end
-
-
-
-
 % Set to true to display debug flags
 PRINT_DEBUG_FLAGS = false;
 
@@ -309,6 +294,40 @@ nnzIdx        = [];                 % Active-set indicator.
 subspace      = false;              % Flag if did subspace min in current itn.
 stepG         = 1;                  % Step length for projected gradient.
 testUpdateTau = 0;                  % Previous step did not update tau
+
+
+
+
+
+% Determine initial x, vector length n, and see if problem is complex
+explicit = ~(isa(A,'function_handle'));
+if isa(A, 'opSpot') || explicit
+   funForward = @SpotFunForward; 
+   linear = 1; 
+else
+   funForward = A;
+   linear = 0;    
+end
+
+if isempty(x)
+   if isnumeric(A)
+      n = size(A,2);
+      realx = isreal(A) && isreal(b);
+   else
+      x = funForward(x, -b);
+      n = length(x);
+      realx = isreal(x) && isreal(b);
+   end
+   x = zeros(n,1);
+else
+   n     = length(x);
+   realx = isreal(x) && isreal(b);
+end
+if isnumeric(A), realx = realx && isreal(A); end;
+
+% Override options when options.iscomplex flag is set
+if (~isnan(options.iscomplex)), realx = (options.iscomplex == 0); end
+
 
 
 % Check if all weights (if any) are strictly positive. In previous
