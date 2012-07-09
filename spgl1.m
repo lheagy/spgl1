@@ -633,6 +633,66 @@ while 1
           end
        end
        
+       
+       %---------------------------------------------------------------
+       % Subspace minimization (only if active-set change is small).
+       %---------------------------------------------------------------
+       doSubspaceMin = false;
+       if subspaceMin
+           g = - Aprod(r,2);
+           [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzOld,options);
+           if ~nnzDiff
+               if nnzX == nnzG, itnMaxLSQR = 20;
+               else             itnMaxLSQR = 5;
+               end
+               nnzIdx = abs(x) >= optTol;
+               doSubspaceMin = true;
+           end
+       end
+       
+       if doSubspaceMin
+           
+           % LSQR parameters
+           damp       = 1e-5;
+           aTol       = 1e-1;
+           bTol       = 1e-1;
+           conLim     = 1e12;
+           showLSQR   = 0;
+           
+           ebar   = sign(x(nnzIdx));
+           nebar  = length(ebar);
+           Sprod  = @(y,mode)LSQRprod(@Aprod,nnzIdx,ebar,n,y,mode);
+           
+           [dxbar, istop, itnLSQR] = ...
+               lsqr(m,nebar,Sprod,r,damp,aTol,bTol,conLim,itnMaxLSQR,showLSQR);
+           
+           itnTotLSQR = itnTotLSQR + itnLSQR;
+           
+ 
+           
+           
+           if istop ~= 4  % LSQR iterations successful. Take the subspace step.
+               % Push dx back into full space:  dx = Z dx.
+               dx = zeros(n,1);
+               dx(nnzIdx) = dxbar - (1/nebar)*(ebar'*dxbar)*dxbar;
+               
+               % Find largest step to a change in sign.
+               block1 = nnzIdx  &  x < 0  &  dx > +pivTol;
+               block2 = nnzIdx  &  x > 0  &  dx < -pivTol;
+               alpha1 = Inf; alpha2 = Inf;
+               if any(block1), alpha1 = min(-x(block1) ./ dx(block1)); end
+               if any(block2), alpha2 = min(-x(block2) ./ dx(block2)); end
+               alpha = min([1  alpha1  alpha2]);
+               ensure(alpha >= 0);
+               ensure(ebar'*dx(nnzIdx) <= optTol);
+               
+               % Update variables.
+               x    = x + alpha*dx;
+               r    = b - Aprod(x,1);
+               f    = r'*r / 2;
+               subspace = true;
+           end
+       end
        primNorm_x = undist(primal_norm(x,weights));
        targetNorm = tau+optTol;
        
