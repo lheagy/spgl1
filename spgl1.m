@@ -412,17 +412,12 @@ end
 if isempty(x)
     r         = b;  % r = b - Ax
     [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
-%    g         = -Aprod(r,2);  % g = -A'r
-%    f         = norm(r)^2 / 2;
     dx        = project(-g, tau);
 else
     x         = project(x,tau);
     r         = b - funForward(x, [], params);  % r = b - f(x)
     nProdA = nProdA + 1;
     [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
-%    [f g g2]     = funComposite(x, b, funForward, funPenalty, params);
-%    g         =   - Aprod(r,2);  % g = -A'r
-%    f         = norm(r)^2 / 2;
     dx        = project(x - g, tau) - x;
 end
 
@@ -437,7 +432,7 @@ end
 % Required for nonmonotone strategy.
 lastFv(1) = f;
 fBest     = f;
-% xBest     = x;
+xBest     = x;
 fOld      = f;
 
 dispFlag('fin Init')
