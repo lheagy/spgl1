@@ -147,14 +147,21 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %               -disabled subspace minimizaiton permanately to avoid computing active set to save space
 %               -re-written some expressions to avoid calculating imtermediate results
 % 03 May 11: Further memory optimizations, calculated many quantites in-place to avoid temporary allocation of memory, made oneProjector nested
-
+% 
+% 09 July 12: Redesigned code to solve a more general class of problems,
+%             including (a) arbitrary differentiable misfits and (b)
+%             nonlinear forward models. 
+%             Aleksandr Aravkin (saravkin@eos.ubc.ca).
+%
 %
 %   ----------------------------------------------------------------------
 %   This file is part of SPGL1 (Spectral Projected-Gradient for L1).
 %
-%   Copyright (C) 2007 Ewout van den Berg and Michael P. Friedlander,
+%   Copyright (C) 2007-2012 Ewout van den Berg, Michael P. Friedlander,
+%   Aleksandr Aravkin.
 %   Department of Computer Science, University of British Columbia, Canada.
-%   All rights reserved. E-mail: <{ewout78,mpf}@cs.ubc.ca>.
+%   All rights reserved. E-mail: <{ewout78,mpf}@cs.ubc.ca>,
+%   sarvkin@eos.ubc.ca.
 %
 %   SPGL1 is free software; you can redistribute it and/or modify it
 %   under the terms of the GNU Lesser General Public License as
