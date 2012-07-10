@@ -179,8 +179,8 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301
 %   USA
 %   ----------------------------------------------------------------------
-REVISION = '$Rev: 78 $';
-DATE     = '$Date: 2012-07-05 16:16:15 -0700 (Thu, 05 Jul 2012) $';
+REVISION = '$Rev: 83 $';
+DATE     = '$Date: 2012-07-09 17:41:32 -0700 (Mon, 09 Jul 2012) $';
 REVISION = REVISION(6:end-1);
 DATE     = DATE(35:50);
 
@@ -474,10 +474,10 @@ while 1
     
     % Count number of consecutive iterations with identical support.
     nnzOld = nnzIdx;
-    if(options.proxy)
-        [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g2,nnzIdx,options);
+    if(~options.proxy)
+        [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options, params);
     else
-        [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options);
+        [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g2,nnzIdx,options, params);
     end
     if nnzDiff
        nnzIter = 0;
@@ -949,7 +949,7 @@ end % function spg
 
 
 
-function [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options)
+function [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options, params)
 % Find the current active set.
 % nnzX    is the number of nonzero x.
 % nnzG    is the number of elements in nnzIdx.
@@ -969,10 +969,11 @@ end
   z2 = gNorm - g;
 
   % Primal/dual based indicators.
+if(~options.proxy)
   xPos    = x >  xTol  &  z1 < gTol; %g < gTol;%
   xNeg    = x < -xTol  &  z2 < gTol; %g > gTol;%
   nnzIdx  = xPos | xNeg;
-
+end
   % Count is based on simple primal indicator.
   nnzX    = sum(abs(x) >= xTol);
   nnzG    = sum(nnzIdx);
