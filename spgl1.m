@@ -1,6 +1,6 @@
 function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 
-% added comment to indicate sampling
+% This is a branch for Felix with the sampling operator
 
 %SPGL1  Solve regularized composite programs, including 
 % a) basis pursuit, basis pursuit denoise and lasso
@@ -33,12 +33,16 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %                              if mode == 2 then y is n-by-1.
 % 
 %          If A is nonlinear, then it must have the signature 
-%               [f]  = funForward(x)  and 
-%               [gv] = funForward(x, v)
+%               [f]  = funForward(x, [], params)  and 
+%               [gv] = funForward(x, v, params)
 %          gv returns the action of the gradient of f on a vector. 
 %
 %
-% b        is an m-vector.
+% b        is an m-vector, or a function handle with signature
+%          [b] = fun(flag, params); 
+%                flag = 1 means resample
+%                flag = 0 means don't resample
+%                for now, params will have whatever 'full' data is needed
 % tau      is a nonnegative scalar; see (LASSO).
 % sigma    if sigma != inf or != [], then spgl1 will launch into a
 %          root-finding mode to find the tau above that solves (BPDN).
@@ -87,7 +91,13 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %        .minPareto   Minimum number of spgl1 iterations before checking for quitPareto
 %        .funPenalty  function handle for h(r) alone, with signature
 %                     [f, g] = funPenalty(r)
+%        .resample    if 0, don't resample at all 
+%                     if 1, resample when you hit the pareto curve
+%                     if 2, resample at each gradient evaluation. 
+        
 %
+% params .data        data used in case b is a function handle
+
 
 %
 % EXAMPLE
@@ -191,7 +201,19 @@ PRINT_DEBUG_FLAGS = false;
 
 
 tic;              % Start your watches!
-m = length(b);
+
+explicitData = ~(isa(b,'function_handle')); % b can be a function handle
+
+if(explicitData)
+   data = b; 
+else
+   data = b(0, params); % create data for the problem, resampling optional
+                        % note that calling b() can modify params.W, and 
+                        % the same W will be used by whatever you pass in
+                        % for the A operator
+end
+
+m = length(data);
 %----------------------------------------------------------------------
 % Check arguments. 
 %----------------------------------------------------------------------
@@ -246,8 +268,9 @@ defaultopts = spgSetParms(...
 'dual_norm'  , @NormL1_dual    , ...
 'funPenalty' , @funLS          , ... % default penalty - backward compatible with spgl1
 'proxy'      ,      0          , ... % advanced option that computes pareto curve in a user-specified way. 
-'restore'    ,      0            ... % whether to restore best previous answer. for large problems, don't want to do this. 
-   );
+'restore'    ,      0          ,  ... % whether to restore best previous answer. for large problems, don't want to do this. 
+'resample'   ,      0          ...
+);
 options = spgSetParms(defaultopts, options);
 
 
@@ -274,7 +297,7 @@ primal_norm   = options.primal_norm;
 dual_norm     = options.dual_norm;
 params.proxy  = options.proxy;
 funPenalty    = options.funPenalty;
-
+resample      = options.resample;
 
 % definitely don't do subspace minimiation in the non LS case
 if(~strcmp(func2str(funPenalty), 'funLS'))
@@ -292,7 +315,7 @@ lastFv        = -inf(nPrevVals,1);  % Last m function values.
 nLineTot      = 0;                  % Total no. of linesearch steps.
 printTau      = false;
 nNewton       = 0;
-bNorm         = funPenalty(b, params);
+bNorm         = funPenalty(data, params);
 stat          = false;
 timeProject   = 0;
 timeMatProd   = 0;
@@ -308,6 +331,8 @@ testUpdateTau = 0;                  % Previous step did not update tau
 
 % Determine initial x, vector length n, and see if problem is complex
 explicit = ~(isa(A,'function_handle'));
+
+
 if isa(A, 'opSpot') || explicit
    funForward = @SpotFunForward; 
    linear = 1; 
@@ -321,14 +346,14 @@ if isempty(x)
       n = size(A,2);
       realx = isreal(A) && isreal(b);
    else
-      x = funForward(x, -b);
+      x = funForward(x, -data);
       n = length(x);
-      realx = isreal(x) && isreal(b);
+      realx = isreal(x) && isreal(data);
    end
    x = zeros(n,1);
 else
    n     = length(x);
-   realx = isreal(x) && isreal(b);
+   realx = isreal(x) && isreal(data);
 end
 if isnumeric(A), realx = realx && isreal(A); end;
 
@@ -420,12 +445,12 @@ end
 
 % Project the starting point and evaluate function and gradient.
 if isempty(x)
-    r         = b;  % r = b - Ax
+    r         = data;  % r = b - Ax
     [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
     dx        = project(-g, tau);
 else
     x         = project(x,tau);
-    r         = b - funForward(x, [], params);  % r = b - f(x)
+    r         = data - funForward(x, [], params);  % r = b - f(x)
     nProdA = nProdA + 1;
     [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
     dx        = project(x - g, tau) - x;
@@ -879,11 +904,11 @@ printf('\n');
 
 %% This function is only activated if a spot operator is passed in
 function f = SpotFunForward(x, g, params)
-if isempty(g)
-    f = A*x;
-else
-    f = A'*g;    
-end
+    if isempty(g)
+        f = A*x;
+    else
+        f = A'*g;
+    end
 end
 
 
