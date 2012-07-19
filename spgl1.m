@@ -346,7 +346,7 @@ if isempty(x)
       n = size(A,2);
       realx = isreal(A) && isreal(b);
    else
-      x = funForward(x, -data);
+      x = funForward(x, -data, params);
       n = length(x);
       realx = isreal(x) && isreal(data);
    end
@@ -492,7 +492,7 @@ while 1
     end
     %    g2Norm  = undist(options.dual_norm(g2,weights,params));
     rNorm   = f;  % rNorm and f are exactly the same. 
-    gap     = dot(r,(r-b)) + tau*gNorm; % Still use this expression for duality gap. Note that f and rNorm are the same now. 
+    gap     = dot(r,(r-data)) + tau*gNorm; % Still use this expression for duality gap. Note that f and rNorm are the same now. 
     rGap    = abs(gap) / max(1,f);
     aError1 = rNorm - sigma;
     aError2 = rNorm^2 - sigma^2; % Why not? 
@@ -641,9 +641,9 @@ while 1
           gtd  = dot(g,dx);
 
           if(linear)
-              [f,step,r,nLine,lnErr, localProdA] = spgLine(f,dx,gtd,rOld,max(lastFv), funForward, funPenalty,  params, b,feasSrchIt, linear);
+              [f,step,r,nLine,lnErr, localProdA] = spgLine(f,dx,gtd,rOld,max(lastFv), funForward, funPenalty,  params, data,feasSrchIt, linear);
           else 
-              [f,step,r,nLine,lnErr, localProdA] = spgLine(f,dx,gtd,x,max(lastFv), funForward, funPenalty,  params, b,feasSrchIt, linear);
+              [f,step,r,nLine,lnErr, localProdA] = spgLine(f,dx,gtd,x,max(lastFv), funForward, funPenalty,  params, data, feasSrchIt, linear);
           end
           nProdA = nProdA + localProdA;
           dispFlag('fin FeasLineSrch')
@@ -669,6 +669,19 @@ while 1
                      'Damping max BB scaling to %6.1e.\n'],lnErr,stepMax);
              maxLineErrors = maxLineErrors - 1;
           end
+       end
+       
+       
+       % Resampling: once everything is updated, we resample appropriately.
+       switch(resampling) % resampling only makes sense if b is a function handle
+           case{'1'} % only resample if we reached pareto curve
+               if(testUpdateTau)
+                   data = b(1, params);
+               end
+           case{'2'} % resample all the time
+               data = b(1, params);
+           otherwise
+               % do nothing
        end
        
        
@@ -726,7 +739,8 @@ while 1
                
                % Update variables.
                x    = x + alpha*dx;
-               r    = b - funForward(x,[], params);
+               
+               r    = data - funForward(x,[], params);
                f    = funPenalty(r, params);
                subspace = true;
            end
@@ -758,6 +772,8 @@ while 1
 %        end
        
        gOld = g;
+       
+       
        
        
        % g    = - Aprod(r,2);
@@ -1031,7 +1047,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-function [fNew,step,rNew,iter,err, localProdA] = spgLine(f,d,gtd,x,fMax,funForward, funPenalty, params, b,feasSrchIt,linear)
+function [fNew,step,rNew,iter,err, localProdA] = spgLine(f,d,gtd,x,fMax,funForward, funPenalty, params, data,feasSrchIt,linear)
 % Nonmonotone linesearch.
 
 localProdA = 0;
@@ -1058,7 +1074,7 @@ while 1
     if(linear)
         rNew = r - step*Ad;
     else
-        rNew = b - funForward(x + step*d, [], params);
+        rNew = data - funForward(x + step*d, [], params);
         localProdA = localProdA + 1;
     end
     
@@ -1098,7 +1114,7 @@ end % function spgLine
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function [fNew,xNew,rNew,iter,step,err, nProd] = ...
-    spgLineCurvy(x,g,fMax,funForward, funPenalty, b,project,tau, params)
+    spgLineCurvy(x,g,fMax,funForward, funPenalty, data,project,tau, params)
 % Projected backtracking linesearch.
 % On entry,
 % g  is the (possibly scaled) steepest descent direction.
@@ -1126,7 +1142,7 @@ while 1
 
     % Evaluate trial point and function value.
     xNew     = project(x - step*scale*g, tau);
-    rNew     = b - funForward(xNew, [], params);
+    rNew     = data - funForward(xNew, [], params);
     nProd    = nProd + 1;
     fNew     = funPenalty(rNew, params);
     s        = xNew - x;
