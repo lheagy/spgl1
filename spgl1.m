@@ -269,7 +269,8 @@ defaultopts = spgSetParms(...
 'funPenalty' , @funLS          , ... % default penalty - backward compatible with spgl1
 'proxy'      ,      0          , ... % advanced option that computes pareto curve in a user-specified way. 
 'restore'    ,      0          ,  ... % whether to restore best previous answer. for large problems, don't want to do this. 
-'resample'   ,      0          ...
+'resample'   ,      0          ,  ...
+'linear'     ,      0             ...  % set this to 1 to declare your special function handle as linear
 );
 options = spgSetParms(defaultopts, options);
 
@@ -338,7 +339,7 @@ if isa(A, 'opSpot') || explicit
    linear = 1; 
 else
    funForward = A;
-   linear = 0;    
+   linear = options.linear;    
 end
 
 if isempty(x)

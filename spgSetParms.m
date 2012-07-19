@@ -46,7 +46,8 @@ if nargin == 0 && nargout == 0
    fprintf(' funPenalty : [ function                |  funLS]\n');
    fprintf(' proxy      : [ 0=no, 1=yes             |  0    ]\n');
    fprintf(' restore    : [ 0=no, 1=yes             |  0    ]\n');
-   fprintf(' resample    : [ 0=no, 1=on update, 1 = ever gradient|  0    ]\n');
+   fprintf(' resample    : [ 0=no, 1=on update, 2 = ever gradient|  0    ]\n');
+   fprintf(' linear    : [ 0=no, 1=yes              |  0    ]\n');
    
 
    fprintf('\n');
@@ -83,6 +84,8 @@ Names = [
     'proxy             '
     'restore           '
     'resample          '
+    'linear            '
+
     ];
 [m,n] = size(Names);
 names = lower(Names);
