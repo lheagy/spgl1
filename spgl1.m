@@ -673,7 +673,7 @@ while 1
        
        
        % Resampling: once everything is updated, we resample appropriately.
-       switch(resampling) % resampling only makes sense if b is a function handle
+       switch(resample) % resampling only makes sense if b is a function handle
            case{'1'} % only resample if we reached pareto curve
                if(testUpdateTau)
                    data = b(1, params);
