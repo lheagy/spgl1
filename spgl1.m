@@ -485,21 +485,21 @@ while 1
     %------------------------------------------------------------------
 
       % Resampling: once everything is updated, we resample appropriately.
-    switch(resample) % resampling only makes sense if b is a function handle
-        case{1} % only resample if we reached pareto curve
-            if(testUpdateTau && iter > 1)
-                [data params] = b(1, params);
-                 r         = data - funForward(x, [], params);  % r = b - f(x)
-                 nProdA = nProdA + 1;
-                 [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
-            end
-        case{2} % resample all the time
-            if(iter > 1)
-               [data params] = b(1, params);
-            end
-        otherwise
-            % do nothing
-    end
+%     switch(resample) % resampling only makes sense if b is a function handle
+%         case{1} % only resample if we reached pareto curve
+%             if(testUpdateTau && iter > 1)
+%                 [data params] = b(1, params);
+%                  r         = data - funForward(x, [], params);  % r = b - f(x)
+%                  nProdA = nProdA + 1;
+%                  [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
+%             end
+%         case{2} % resample all the time
+%             if(iter > 1)
+%                [data params] = b(1, params);
+%             end
+%         otherwise
+%             % do nothing
+%     end
     
     
     % Compute quantities needed for log and exit conditions.
@@ -575,6 +575,32 @@ while 1
           if quitPareto && iter >= minPareto, stat=EXIT_AT_PARETO;end % Chose to exit out of SPGL1 when pareto is reached 
           % Update tau.
           tauOld   = tau;
+          if(testUpdateTau && iter > 1)
+              switch(resample) % resampling only makes sense if b is a function handle
+                case{1} % only resample if we reached pareto curve
+              
+                    [data params] = b(1, params);
+                    r         = data - funForward(x, [], params);  % r = b - f(x)
+                    nProdA = nProdA + 1;
+                    [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
+                     % Compute quantities needed for log and exit conditions.
+                    if(options.proxy)
+                        gNorm   = undist(dual_norm(g2,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+                    else
+                            % for now, we assume params only used by proxy formulations
+                        gNorm   = undist(dual_norm(g,weights)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+                    end
+                    rNorm   = f;  % rNorm and f are exactly the same. 
+                    %gap     = dot(r,(r-data)) + tau*gNorm; % Still use this expression for duality gap. Note that f and rNorm are the same now. 
+                    %rGap    = abs(gap) / max(1,f);
+                    %aError1 = rNorm - sigma;
+                    %rError1 = abs(aError1) / max(1,rNorm);              
+                  otherwise
+               end
+               
+                    % do nothing
+          end
+                    
           tau      = max(0,tau + (aError1) / (gNorm)); % deleted rNorm from numerator. In this algorithm, ony gNorm with contain derivative information. 
           nNewton  = nNewton + 1;
           printTau = abs(tauOld - tau) >= 1e-6 * tau; % For log only.

@@ -17,7 +17,7 @@ opts = spgSetParms('optTol',1e-4, ...
                    'linear',     1 ...
                    );
 
-sigma = 1e-3;  
+sigma = 1e-6;  
 %% Run three separate root finding problems
 
 
