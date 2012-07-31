@@ -7,7 +7,7 @@ sigma = 1e-3;
 
 [xOrig,rOrig,g,infoOrig] = spgl1Orig(A, b, 0, sigma); % Find BP sol'n.
 
-%[xNew,rNew,g,infoNew] = spgl1(A, b, 0, sigma); % Find BP sol'n.
+[xNew,rNew,g,infoNew] = spgl1(A, b, 0, sigma); % Find BP sol'n.
 
 
 opts = spgSetParms('funPenalty', @funLS2);

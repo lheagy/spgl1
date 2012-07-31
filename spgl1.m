@@ -226,6 +226,7 @@ defaultopts = spgSetParms(...
 'iterations' ,   10*m , ... % Max number of iterations
 'nPrevVals'  ,      3 , ... % Number previous func values for linesearch
 'bpTol'      ,  1e-06 , ... % Tolerance for basis pursuit solution 
+'lsTol'      ,  1e-06 , ... % Least-squares optimality tolerance
 'optTol'     ,  1e-04 , ... % Optimality tolerance
 'decTol'     ,  1e-04 , ... % Req'd rel. change in primal obj. for Newton
 'stepMin'    ,  1e-16 , ... % Minimum spectral step
@@ -256,6 +257,7 @@ logLevel      = options.verbosity;
 maxIts        = options.iterations;
 nPrevVals     = options.nPrevVals;
 bpTol         = options.bpTol;
+lsTol         = options.lsTol;
 optTol        = options.optTol;
 decTol        = options.decTol;
 stepMin       = options.stepMin;
@@ -373,8 +375,9 @@ lambda = zeros(min(maxIts,10000),1);
 
 % Exit conditions (constants).
 EXIT_ROOT_FOUND    = 1;
-EXIT_BPSOL1_FOUND  = 2;
-EXIT_BPSOL2_FOUND  = 3;
+EXIT_BPSOL_FOUND  = 2;
+%EXIT_BPSOL2_FOUND  = 3;
+EXIT_LEAST_SQUARES = 3;
 EXIT_OPTIMAL       = 4;
 EXIT_ITERATIONS    = 5;
 EXIT_LINE_ERROR    = 6;
@@ -507,18 +510,23 @@ while 1
  
     % Multiple tau: Check if found root and/or if tau needs updating.
     else
-       
+         % Test if a least-squares solution has been found
+       if gNorm <= lsTol * rNorm
+          stat = EXIT_LEAST_SQUARES;
+       end
+        
+        
        if rGap <= max(optTol, rError2) || rError1 <= optTol
           % The problem is nearly optimal for the current tau.
           % Check optimality of the current root.
           test1 = rNorm       <=   bpTol * bNorm;
-          test2 = gNorm       <=   bpTol * rNorm;
+    %      test2 = gNorm       <=   bpTol * rNorm;
           test3 = rError1     <=  optTol;
           test4 = rNorm       <=  sigma;
           
           if test4, stat=EXIT_SUBOPTIMAL_BP;end % Found suboptimal BP sol.
           if test3, stat=EXIT_ROOT_FOUND;   end % Found approx root.
-          if test2, stat=EXIT_BPSOL2_FOUND; end % Gradient zero -> BP sol.
+    %      if test2, stat=EXIT_BPSOL2_FOUND; end % Gradient zero -> BP sol.
           if test1, stat=EXIT_BPSOL1_FOUND; end % Resid minim'zd -> BP sol.
        end
 
@@ -848,9 +856,11 @@ switch (stat)
       printf('\n ERROR EXIT -- Too many iterations\n');
    case EXIT_ROOT_FOUND
       printf('\n EXIT -- Found a root\n');
-   case {EXIT_BPSOL1_FOUND, EXIT_BPSOL2_FOUND}
-      printf('\n EXIT -- Found a BP solution\n');
-   case EXIT_LINE_ERROR
+ %  case {EXIT_BPSOL1_FOUND, EXIT_BPSOL2_FOUND}
+ %     printf('\n EXIT -- Found a BP solution\n');
+    case {EXIT_LEAST_SQUARES}
+      printf('\n EXIT -- Found a least-squares solution\n');
+    case EXIT_LINE_ERROR
       printf('\n ERROR EXIT -- Linesearch error (%i)\n',lnErr);
    case EXIT_SUBOPTIMAL_BP
       printf('\n EXIT -- Found a suboptimal BP solution\n');

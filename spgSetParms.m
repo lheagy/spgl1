@@ -23,6 +23,7 @@ if nargin == 0 && nargout == 0
    fprintf(' iterations : [ positive integer        |  10*m ]\n');
    fprintf('  nPrevVals : [ positive integer        |    10 ]\n');
    fprintf('      bpTol : [ positive scalar         | 1e-06 ]\n');
+   fprintf('      lsTol : [ positive scalar         | 1e-06 ]\n');
    fprintf('     optTol : [ positive scalar         | 1e-04 ]\n');
    fprintf('     decTol : [ positive scalar         | 1e-04 ]\n');   
    fprintf('    stepMin : [ positive scalar         | 1e-16 ]\n');
@@ -58,6 +59,7 @@ Names = [
     'iterations        '
     'nPrevVals         '
     'bpTol             '
+    'lsTol             '
     'optTol            '
     'decTol            '
     'stepMin           '
