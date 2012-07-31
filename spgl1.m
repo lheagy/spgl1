@@ -468,6 +468,9 @@ while 1
     %    g2Norm  = undist(options.dual_norm(g2,weights,params));
     rNorm   = f;  % rNorm and f are exactly the same. 
     gap     = dot(r,(r-b)) + tau*gNorm; % Still use this expression for duality gap. Note that f and rNorm are the same now. 
+    
+    %TODO: Replace gap with spectral gradient based metric. 
+    
     rGap    = abs(gap) / max(1,f);
     aError1 = rNorm - sigma;
     aError2 = rNorm^2 - sigma^2; % Why not? 
