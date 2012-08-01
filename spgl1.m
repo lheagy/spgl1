@@ -58,7 +58,7 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 % info     is a structure with the following information:
 %          .tau     final value of tau (see sigma above)
 %          .rNorm   two-norm of the optimal residual
-%          .rGap    relative duality gap (an optimality measure)
+%          .rErr    relative duality gap (an optimality measure)
 %          .gNorm   Lagrange multiplier of (LASSO)
 %          .stat    = 1 found a BPDN solution
 %                   = 2 found a BP sol'n; exit based on small gradient
@@ -470,11 +470,11 @@ while 1
     end
     %    g2Norm  = undist(options.dual_norm(g2,weights,params));
     rNorm   = f;  % rNorm and f are exactly the same. 
-    gap     = dot(r,(r-b)) + tau*gNorm; % Still use this expression for duality gap. Note that f and rNorm are the same now. 
+   
+    Err = norm(x - project(x - g, tau));
+    rErr = Err/max(1, f);
     
-    %TODO: Replace gap with spectral gradient based metric. 
-    
-    rGap    = abs(gap) / max(1,f);
+   
     aError1 = rNorm - sigma;
     aError2 = rNorm^2 - sigma^2; % Why not? 
     rError1 = abs(aError1) / max(1,rNorm);
@@ -504,7 +504,7 @@ while 1
     % Single tau: Check if we're optimal.
     % The 2nd condition is there to guard against large tau.
     if singleTau
-       if rGap <= optTol || rNorm < optTol*bNorm
+       if rErr <= optTol || rNorm < optTol*bNorm
           stat  = EXIT_OPTIMAL;
        end
  
@@ -516,7 +516,7 @@ while 1
        end
         
         
-       if rGap <= max(optTol, rError2) || rError1 <= optTol
+       if rErr <= max(optTol, rError2) || rError1 <= optTol
           % The problem is nearly optimal for the current tau.
           % Check optimality of the current root.
           test1 = rNorm       <=   bpTol * bNorm;
@@ -567,12 +567,12 @@ while 1
        if printTau, tauFlag = sprintf(' %13.7e',tau);   end
        if subspace, subFlag = sprintf(' S %2i',itnLSQR); end
        if singleTau
-          printf(logB,undist(iter),undist(rNorm),undist(rGap),undist(gNorm),log10(undist(stepG)),undist(nnzX),undist(nnzG));
+          printf(logB,undist(iter),undist(rNorm),undist(rErr),undist(gNorm),log10(undist(stepG)),undist(nnzX),undist(nnzG));
           if subspace
              printf('  %s',subFlag);
           end
        else
-          printf(logB,undist(iter),undist(rNorm),undist(rGap),undist(rError1),undist(gNorm),log10(undist(stepG)),undist(nnzX),undist(nnzG));
+          printf(logB,undist(iter),undist(rNorm),undist(rErr),undist(rError1),undist(gNorm),log10(undist(stepG)),undist(nnzX),undist(nnzG));
           if printTau || subspace
              printf(' %s',[tauFlag subFlag]);
           end
@@ -830,9 +830,8 @@ end
 % Final cleanup before exit.
 info.tau         = tau;
 info.rNorm       = rNorm;
-info.rGap        = rGap;
 info.gNorm       = gNorm;
-info.rGap        = rGap;
+info.rErr        = rErr;
 info.stat        = stat;
 info.iter        = iter;
 info.nProdA      = nProdA;
