@@ -58,7 +58,7 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 % info     is a structure with the following information:
 %          .tau     final value of tau (see sigma above)
 %          .rNorm   two-norm of the optimal residual
-%          .rErr    relative duality gap (an optimality measure)
+%          .rErr    relative error (an optimality measure)
 %          .gNorm   Lagrange multiplier of (LASSO)
 %          .stat    = 1 found a BPDN solution
 %                   = 2 found a BP sol'n; exit based on small gradient
@@ -411,11 +411,11 @@ printf('\n');
 if singleTau
    logB = ' %5i  %13.7e  %13.7e  %9.2e  %6.1f  %6i  %6i';
    logH = ' %5s  %13s  %13s  %9s  %6s  %6s  %6s\n';
-   printf(logH,'Iter','Objective','Relative Gap','gNorm','stepG','nnzX','nnzG');
+   printf(logH,'Iter','Objective','Relative Error','gNorm','stepG','nnzX','nnzG');
 else
    logB = ' %5i  %13.7e  %13.7e  %9.2e  %9.3e  %6.1f  %6i  %6i';
    logH = ' %5s  %13s  %13s  %9s  %9s  %6s  %6s  %6s  %13s\n';
-   printf(logH,'Iter','Objective','Relative Gap','Rel Error',...
+   printf(logH,'Iter','Objective','Relative Error','Rel Error',...
           'gNorm','stepG','nnzX','nnzG','tau');
 end    
 
