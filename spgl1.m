@@ -511,7 +511,7 @@ while 1
     % Multiple tau: Check if found root and/or if tau needs updating.
     else
          % Test if a least-squares solution has been found
-       if gNorm <= lsTol * rNorm
+       if gNorm <= lsTol % removed '*rNorm'
           stat = EXIT_LEAST_SQUARES;
        end
         
