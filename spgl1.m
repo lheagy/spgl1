@@ -247,6 +247,7 @@ defaultopts = spgSetParms(...
 'dual_norm'  , @NormL1_dual    , ...
 'funPenalty' , @funLS          , ... % default penalty - backward compatible with spgl1
 'proxy'      ,      0          , ... % advanced option that computes pareto curve in a user-specified way. 
+'linear'     ,      0          , ... % advanced option that allows you to declare input functions to be linear
 'restore'    ,      0            ... % whether to restore best previous answer. for large problems, don't want to do this. 
    );
 options = spgSetParms(defaultopts, options);
@@ -276,6 +277,7 @@ primal_norm   = options.primal_norm;
 dual_norm     = options.dual_norm;
 params.proxy  = options.proxy;
 funPenalty    = options.funPenalty;
+
 
 
 % definitely don't do subspace minimiation in the non LS case
@@ -315,7 +317,7 @@ if isa(A, 'opSpot') || explicit
    linear = 1; 
 else
    funForward = A;
-   linear = 0;    
+   linear = options.linear;    
 end
 
 if isempty(x)
