@@ -35,7 +35,7 @@ params.funPenalty = @funLS;
 
 
 [xLS, r, g, info] = spgl1(A, b, [], sigma, [], opts, params);
-%[xLS, r, g, info] = spgl1Classic(A, b, [], sigma, 0*x0, opts);
+%[xLS, r, g, info] = spgl1Orig(A, b, [], sigma, 0*x0, opts);
 
 %%
 
