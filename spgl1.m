@@ -1,5 +1,5 @@
 function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
-% SPGL1 sampling branch
+
 
 
 %SPGL1  Solve regularized composite programs, including 
