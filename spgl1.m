@@ -529,7 +529,7 @@ while 1
           if test4, stat=EXIT_SUBOPTIMAL_BP;end % Found suboptimal BP sol.
           if test3, stat=EXIT_ROOT_FOUND;   end % Found approx root.
     %      if test2, stat=EXIT_BPSOL2_FOUND; end % Gradient zero -> BP sol.
-          if test1, stat=EXIT_BPSOL1_FOUND; end % Resid minim'zd -> BP sol.
+          if test1, stat=EXIT_BPSOL_FOUND; end % Resid minim'zd -> BP sol.
        end
 
        testRelChange1 = (abs(f - fOld) <= decTol * f);
@@ -599,7 +599,7 @@ while 1
     % Iterations begin here.
     %==================================================================
     iter = iter + 1;
-    xOld = x;  fOld = f; rOld = r; % gOld update moved down to coincide with gradient update
+    xOld = x;  fOld = f; rOld = r; gOld = g; % gOld update moved down to coincide with gradient update
     try
        %---------------------------------------------------------------
        % Projected gradient step and linesearch.
@@ -745,7 +745,7 @@ while 1
 %            clear xOld
 %        end
        
-       gOld = g;
+%       gOld = g;
        
        
        % g    = - Aprod(r,2);
@@ -777,6 +777,7 @@ while 1
        if   sty <= 0,  gStep = stepMax;
        else            gStep = min( stepMax, max(stepMin, sts/sty) );
        end
+       
        
        dispFlag('fin CompScaling')
        
@@ -857,8 +858,8 @@ switch (stat)
       printf('\n ERROR EXIT -- Too many iterations\n');
    case EXIT_ROOT_FOUND
       printf('\n EXIT -- Found a root\n');
- %  case {EXIT_BPSOL1_FOUND, EXIT_BPSOL2_FOUND}
- %     printf('\n EXIT -- Found a BP solution\n');
+   case {EXIT_BPSOL_FOUND}
+      printf('\n EXIT -- Found a BP solution\n');
     case {EXIT_LEAST_SQUARES}
       printf('\n EXIT -- Found a least-squares solution\n');
     case EXIT_LINE_ERROR
