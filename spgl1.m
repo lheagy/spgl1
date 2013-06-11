@@ -464,12 +464,7 @@ while 1
     %------------------------------------------------------------------
 
     % Compute quantities needed for log and exit conditions.
-    if(options.proxy)
-        gNorm   = undist(dual_norm(g2,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
-    else
-        % for now, we assume params only used by proxy formulations
-        gNorm   = undist(dual_norm(g,weights)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
-    end
+
     %    g2Norm  = undist(options.dual_norm(g2,weights,params));
     rNorm   = f;  % rNorm and f are exactly the same. 
    
@@ -513,9 +508,6 @@ while 1
     % Multiple tau: Check if found root and/or if tau needs updating.
     else
          % Test if a least-squares solution has been found
-       if gNorm <= lsTol % removed '*rNorm'
-          stat = EXIT_LEAST_SQUARES;
-       end
         
         
        if rErr <= max(optTol, rError2) || rError1 <= optTol
@@ -539,6 +531,20 @@ while 1
                          ~stat && ~testUpdateTau;
        
        if testUpdateTau
+           
+           if(options.proxy)
+               gNorm   = undist(dual_norm(g2,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+           else
+               % for now, we assume params only used by proxy formulations
+               gNorm   = undist(dual_norm(g,weights)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+           end
+           
+           if gNorm <= lsTol % removed '*rNorm'
+                stat = EXIT_LEAST_SQUARES;
+                break;
+            end
+       
+           
           if quitPareto && iter >= minPareto, stat=EXIT_AT_PARETO;end % Chose to exit out of SPGL1 when pareto is reached 
           % Update tau.
           tauOld   = tau;
