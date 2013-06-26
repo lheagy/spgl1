@@ -621,9 +621,10 @@ while 1
        if lnErr
           %  Projected backtrack failed. Retry with feasible dir'n linesearch.
           dispFlag('begin FeasLineSrch')
-          clear x
           clear r
-          x    = xOld;
+          x = xOld;
+          % r = rOld;
+          f = fOld;
           
           % In-place scaling of gradient and updating of x to save memory
           if ~isempty(xOld)
