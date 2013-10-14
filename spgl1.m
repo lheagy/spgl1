@@ -556,7 +556,9 @@ while 1
              % next iterate if feasible, which we do by projecting it.
              
              x = project(x,tau);
-             
+             r = b - funForward(x, [], params);  % r = b - f(x)
+             nProdA = nProdA + 1;
+             [f g g2] = funCompositeR(r, funForward, funPenalty, params);
           end
        end
     end
