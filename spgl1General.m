@@ -1,8 +1,8 @@
-function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
+function [x,r,g,info] = spgl1General(A, b, tau, sigma, x, options, params)
 
 
 
-%SPGL1  Solve regularized composite programs, including 
+%SPGL1-General:  Solves regularized composite programs, including 
 % a) basis pursuit, basis pursuit denoise and lasso
 % b) nonlinear versions of above problems, where forward model is nonlinear
 % c) robust penalty on misfit, including huber and students t
@@ -100,20 +100,29 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %   [x,r,g,info] = spgl1(A, b, 0, 1e-3, [], opts); % Find BP sol'n.
 %
 % AUTHORS
-% =======
+%  ==========================================================
+%  SPGL1 solver:
 %  Ewout van den Berg (ewout78@cs.ubc.ca)
 %  Michael P. Friedlander (mpf@cs.ubc.ca)
 %    Scientific Computing Laboratory (SCL)
 %    University of British Columbia, Canada.
-%  Aleksandr Aravkin (saravkin@eos.ubc.ca)
-%  CS & EOS, UBC
-%
+%  ==========================================================
+
+%  ==========================================================
+%  SPGL1 Generalized extension:
+%  Aleksandr Aravkin (sasha.aravkin@gmail.com)
+%  T.J. Watson Research Center 
+%  ==========================================================
+%  
+
 % BUGS
 % ====
 % Please send bug reports or comments to
 %            Michael P. Friedlander (mpf@cs.ubc.ca)
 %            Ewout van den Berg (ewout78@cs.ubc.ca)
 
+% REVISION HISTORY
+% ================
 % 15 Apr 07: First version derived from spg.m.
 %            Michael P. Friedlander (mpf@cs.ubc.ca).
 %            Ewout van den Berg (ewout78@cs.ubc.ca).
@@ -153,9 +162,9 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 % 09 July 12: Redesigned code to solve a more general class of problems,
 %             including (a) arbitrary differentiable misfits and (b)
 %             nonlinear forward models. 
-%             Aleksandr Aravkin (saravkin@eos.ubc.ca).
+%             Aleksandr Aravkin.
 %
-% 09 July 12: Removed Kacmarz options (not used anyway) (AA).
+% 09 July 12: Removed Kacmarz options (AA).
 %
 %   ----------------------------------------------------------------------
 %   This file is part of SPGL1 (Spectral Projected-Gradient for L1).
@@ -181,10 +190,10 @@ function [x,r,g,info] = spgl1(A, b, tau, sigma, x, options, params)
 %   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301
 %   USA
 %   ----------------------------------------------------------------------
-REVISION = '$Rev: 83 $';
-DATE     = '$Date: 2012-07-09 17:41:32 -0700 (Mon, 09 Jul 2012) $';
+REVISION = '$Rev: 84 $';
+DATE     = '$Date: 2014-03-18 17:41:32 -0700 (Tues, 18 March 2014) $';
 REVISION = REVISION(6:end-1);
-DATE     = DATE(35:50);
+DATE     = DATE(35:55);
 
 % Set to true to display debug flags
 PRINT_DEBUG_FLAGS = false;
@@ -240,7 +249,7 @@ defaultopts = spgSetParms(...
 'quitPareto' ,      0 , ... % Exits when pareto curve is reached
 'minPareto'  ,      3 , ... % If quitPareto is on, the minimum number of iterations before checking for quitPareto conditions
 'lineSrchIt' ,      10, ... % Maximum number of line search iterations for spgLineCurvy, originally 10 ...
-'feasSrchIt' ,  10000 , ... % Maximum number of feasible direction line search iteraitons, originally 10 ...
+'feasSrchIt' ,      10 , ... % Maximum number of feasible direction line search iteraitons, originally 10 ...
 'ignorePErr' ,      0 , ... % Ignores projections error by issuing a warning instead of an error ...
 'project'    , @NormL1_project , ...
 'primal_norm', @NormL1_primal  , ...
@@ -393,10 +402,10 @@ EXIT_AT_PARETO     = 10;
 %----------------------------------------------------------------------
 printf('\n');
 printf(' %s\n',repmat('=',1,80));
-printf(' SPGL1  v.%s (%s)\n', REVISION, DATE);
+printf(' SPGL1-General  v.%s (%s)\n', REVISION, DATE);
 printf(' %s\n',repmat('=',1,80));
-printf(' %-22s: %8i %4s'   ,'No. rows'          ,m                 ,'');
-printf(' %-22s: %8i\n'     ,'No. columns'       ,n                    );
+printf(' %-22s: %8i %4s'   ,'No. observations'          ,m                 ,'');
+printf(' %-22s: %8i\n'     ,'No. unknowns'       ,n                    );
 printf(' %-22s: %8.2e %4s' ,'Initial tau'       ,tau               ,'');
 printf(' %-22s: %8s'   ,'Penalty  '             , func2str(funPenalty));
 printf('\n %-22s: %8s'   ,'Regularizer'         , func2str(primal_norm));
@@ -452,7 +461,7 @@ fOld      = f;
 
 dispFlag('fin Init')
 
-clear dx
+clear dx;
 
 %----------------------------------------------------------------------
 % MAIN LOOP.
@@ -482,7 +491,11 @@ while 1
     if(~options.proxy)
         [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options, params);
     else
-        [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g2,nnzIdx,options, params);
+%        [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g2,nnzIdx,options, params);
+        nnzX = 0;
+        nnzG = 0;
+        nnzIdx = 0;
+        nnzDiff = 0;
     end
     if nnzDiff
        nnzIter = 0;
@@ -516,7 +529,8 @@ while 1
           test1 = rNorm       <=   bpTol * bNorm;
     %      test2 = gNorm       <=   bpTol * rNorm;
           test3 = rError1     <=  optTol;
-          test4 = rNorm       <=  sigma;
+          test4 = (rNorm       <=  sigma);% && (abs(rNorm - sigma)<decTol);
+       % test4 = 0;
           
           if test4, stat=EXIT_SUBOPTIMAL_BP;end % Found suboptimal BP sol.
           if test3, stat=EXIT_ROOT_FOUND;   end % Found approx root.
@@ -525,7 +539,7 @@ while 1
        end
 
        testRelChange1 = (abs(f - fOld) <= decTol * f);
-       testRelChange2 = (abs(f - fOld) <= 1e-1 * f * (abs(rNorm - sigma)));
+       testRelChange2 = (abs(f - fOld) <= 1e-2 * (abs(rNorm - sigma)));
        testUpdateTau  = ((testRelChange1 && rNorm >  2 * sigma) || ...
                          (testRelChange2 && rNorm <= 2 * sigma)) && ...
                          ~stat && ~testUpdateTau;
@@ -536,7 +550,7 @@ while 1
                gNorm   = undist(dual_norm(g2,weights,params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
            else
                % for now, we assume params only used by proxy formulations
-               gNorm   = undist(dual_norm(g,weights)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
+               gNorm   = undist(dual_norm(g,weights, params)); % originally options.dual_norm(-g,weights), but for true norms the sign should not matter
            end
            
            if gNorm <= lsTol % removed '*rNorm'
@@ -548,7 +562,7 @@ while 1
           if quitPareto && iter >= minPareto, stat=EXIT_AT_PARETO;end % Chose to exit out of SPGL1 when pareto is reached 
           % Update tau.
           tauOld   = tau;
-          tau      = max(0,tau + (aError1) / (gNorm)); % deleted rNorm from numerator. In this algorithm, ony gNorm with contain derivative information. 
+          tau      = max(0,tau + (aError1) / (gNorm)); % deleted rNorm from numerator. In this algorithm, only gNorm with contain derivative information. 
           nNewton  = nNewton + 1;
           printTau = abs(tauOld - tau) >= 1e-6 * tau; % For log only.
           if tau < tauOld
@@ -559,6 +573,7 @@ while 1
              r = b - funForward(x, [], params);  % r = b - f(x)
              nProdA = nProdA + 1;
              [f g g2] = funCompositeR(r, funForward, funPenalty, params);
+%              clear r;
           end
        end
     end
@@ -596,7 +611,7 @@ while 1
     if isempty(x)
         xNorm1(iter+1) = 0;
     else
-        xNorm1(iter+1) = primal_norm(x,weights);
+        xNorm1(iter+1) = primal_norm(x,weights, params);
     end
     rNorm2(iter+1) = rNorm;
     lambda(iter+1) = gNorm;
@@ -607,7 +622,8 @@ while 1
     % Iterations begin here.
     %==================================================================
     iter = iter + 1;
-    xOld = x;  fOld = f; rOld = r; gOld = g; % gOld update moved down to coincide with gradient update
+    xOld = x;  fOld = f; rOld = r; 
+    gOld = g; % gOld update moved down to coincide with gradient update
     try
        %---------------------------------------------------------------
        % Projected gradient step and linesearch.
@@ -625,7 +641,7 @@ while 1
           dispFlag('begin FeasLineSrch')
           clear r
           x = xOld;
-          % r = rOld;
+          r = rOld;
           f = fOld;
           
           % In-place scaling of gradient and updating of x to save memory
@@ -728,7 +744,7 @@ while 1
                subspace = true;
            end
        end
-       primNorm_x = undist(primal_norm(x,weights));
+       primNorm_x = undist(primal_norm(x,weights, params));
        targetNorm = tau+optTol;
        
        if ignorePErr
@@ -916,12 +932,16 @@ function [f g1 g2] = funCompositeR(r, funForward, funPenalty, params)
     
     tStart = toc;
     nProdAt = nProdAt + 1;
+    
     [f v] = funPenalty(r, params);
+  %  f = funPenalty(r, params);
     if(~params.proxy)
         g1 = funForward(x, -v, params);
+%        g1 = funForward(x, -r/f, params);
         g2 = 0;
     else
         [g1 g2] = funForward(x, -v, params);   
+%        [g1 g2] = funForward(x, -r/f, params);   
     end
     timeMatProd = timeMatProd + (toc - tStart);
 end
@@ -942,7 +962,7 @@ function x = project(x, tau)
    dispFlag('begin Project')
     
    tStart      = toc;
-   x = options.project(x,weights,tau); 
+   x = options.project(x,weights,tau, params); 
    timeProject = timeProject + (toc - tStart);
    
    dispFlag('fin Project')
@@ -986,7 +1006,7 @@ function [nnzX,nnzG,nnzIdx,nnzDiff] = activeVars(x,g,nnzIdx,options, params)
 if(options.proxy)
     gNorm   = options.dual_norm(g,options.weights, params);
 else
-    gNorm   = options.dual_norm(g,options.weights);
+    gNorm   = options.dual_norm(g,options.weights, params);
 end
   nnzOld  = nnzIdx;
 

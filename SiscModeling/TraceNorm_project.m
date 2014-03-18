@@ -1,4 +1,4 @@
-function [x] = TraceNorm_project(x,weights, B)
+function [x] = TraceNorm_project(x,weights, B,params)
 %%%% Force the rows of L and R to have norm at most B.
 %
 % (LOut, ROut) = arg min_(U,V) || [L;R]-[U;V] ||_F^2 s.t. || [U;V] ||_mr<B

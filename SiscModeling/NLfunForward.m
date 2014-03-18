@@ -6,6 +6,8 @@ L = reshape(L,params.numr,params.nr);
 R = reshape(R,params.numc,params.nr);
 if isempty(g)
     f1 = params.afun(L*R');
+%  %   f1 = vec(L*R');
+% %    f1(params.Ind) = 0;
     f2 = 0;
 else 
     fp = params.afunT(g);
