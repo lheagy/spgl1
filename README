@@ -1,5 +1,36 @@
-SPGL1: Spectral Projected Gradient for L1 minimization
+SPGL1-General can solve regularization problems with the following features: 
+
+1) nonlinear forward models
+2) general misfit functions (e.g. robust penalties like huber)
+3) general regularizers 
 ------------------------------------------------------
+
+SPGL1-General was forked from SPGL1 by Aleksandr Aravkin, in July 2012. 
+
+References: 
+
+1) Incorporating robust misfit functions, and general regularizers, see 
+
+    A.Y. Aravkin, J.V. Burke, M.P. Friedlander, Variational properties of value functions, 
+    SIAM Journal of Optimization (SIOPT), Vol. 23, No. 3, pp. 1689?1717, August 2013.
+
+2) Nonlinear forward models that allow factorized matrix factorization approaches, see 
+
+    A.Y. Aravkin, R. Kumar, H. Mansour, B. Recht, and F.J. Herrmann, 
+    Fast methods for denoising matrix completion formulations, with applications to robust seismic data interpolation. 
+    Submitted to SIAM Journal on Scientific Computing (SISC), April 2013
+
+
+A MovieLens example from the SISC paper is in the folder SISC-Scripts:
+
+spgl1/SISC-scripts/Movielens_CleverInit.m 
+
+Follow the instructions provided in the script to set up fast modeling operators. 
+
+
+The original content of the README file for SPGL1 appears below: 
+
+
 
 1. Introduction
 ===============
