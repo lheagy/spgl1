@@ -26,11 +26,12 @@ A MovieLens example from the SISC paper is in the folder SISC-Scripts:
 
 spgl1/SISC-scripts/Movielens_CleverInit.m 
 
-Follow the instructions provided in the script to set up fast modeling operators. 
+Please follow the instructions provided in the script to set up fast modeling operators. 
+I will include additional examples in the future, including the robust examples from 
+the SIOPT paper. 
 
 
 The original content of the README file for SPGL1 appears below: 
-
 
 
 1. Introduction
