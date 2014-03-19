@@ -17,8 +17,9 @@ References:
 2) Nonlinear forward models that allow factorized matrix factorization approaches, see 
 
     A.Y. Aravkin, R. Kumar, H. Mansour, B. Recht, and F.J. Herrmann, 
-    Fast methods for denoising matrix completion formulations, with applications to robust seismic data interpolation. 
-    Submitted to SIAM Journal on Scientific Computing (SISC), April 2013
+    Fast methods for denoising matrix completion formulations, with applications to robust 
+    seismic data interpolation, submitted to SIAM Journal on Scientific Computing (SISC), 
+    April 2013.
 
 
 A MovieLens example from the SISC paper is in the folder SISC-Scripts:
