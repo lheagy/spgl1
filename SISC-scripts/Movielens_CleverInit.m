@@ -1,9 +1,21 @@
 % SISC script for small Movielens Example
-% Author: Rajiv Mittal
+% Authors: Rajiv Kumar, Hassan Mansour, and Aleksandr Aravkin. 
+
+% Instructions: 
+% This script depends on fast Omega on LR' operators, which can be obtained
+% from outside libraries. You can find either package in the folder
+% 'Outside Libraries', unzip it, and place it in the same directory as
+% spgl1General. 
+
+% This script then installs mex files for whichever library you want. 
+
+
+
+
 
 clear all;clc;close all;
 % add everything in the path
-addpath(genpath('../'))
+addpath(genpath('../../'))
 
 
 % Which forward model to use? 
@@ -15,12 +27,12 @@ model = 'partXY';       % Operator from Vanderecken's code; seems to be fastest
 switch(model)
     case{'XonOmega'}
         fprintf('Installing mex files for SVT package...\n');
-        run ../SVT_MostRecent/utility/install_mex.m
+        run ../../SVT_MostRecent/utility/install_mex.m
         
     case{'partXY'}
         fprintf('Installing mex files for Riemmanian package...\n');
-        run ../RiemannianMatrixCompletion_6Jan2014/startup.m
-        run ../RiemannianMatrixCompletion_6Jan2014/Install_mex.m
+        run ../../RiemannianMatrixCompletion_6Jan2014/startup.m
+        run ../../RiemannianMatrixCompletion_6Jan2014/Install_mex.m
 
     
     otherwise{'unknown model selected'};
@@ -62,7 +74,7 @@ opts.tol = 1e-5;
 options = spgSetParms('optTol',1e-6, ...
                     'bpTol', 1e-6,...
                     'decTol',1e-4,...
-                    'project', @TraceNorm_project_hassan, ...
+                    'project', @TraceNorm_project, ...
                     'primal_norm', @TraceNorm_primal, ...
                     'dual_norm', @TraceNorm_dual, ...
                     'proxy', 1, ...

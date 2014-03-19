@@ -1,3 +1,6 @@
+% Authors: Rajiv Kumar, Hassan Mansour, and Aleksandr Aravkin. 
+
+
 function [f1 f2] = NLfunForward_partXY(x,g,params)
 
 params.real = 1; % non-sesimic example

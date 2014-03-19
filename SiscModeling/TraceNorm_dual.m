@@ -1,3 +1,6 @@
+% Author: Hassan Mansour
+
+
 function d = TraceNorm_dual(x,weights, params)
 
 % dual of trace norm is operator norm i.e maximum singular value

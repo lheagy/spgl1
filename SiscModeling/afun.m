@@ -1,3 +1,6 @@
+% Authors: Rajiv Kumar, Hassan Mansour, and Aleksandr Aravkin. 
+
+
 function [x] = afun(x,Ind,params)
 % e = params.numr*params.nr;
 % L = x(1:e);
