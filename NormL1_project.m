@@ -1,4 +1,4 @@
-function x = NormL1_project(x,weights,tau)
+function x = NormL1_project(x,weights,tau,params)
 
 if isreal(x)
    x = oneProjector(x,weights,tau);
