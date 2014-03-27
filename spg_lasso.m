@@ -43,4 +43,4 @@ end
 
 sigma = [];
 x0  = [];
-[x,r,g,info] = spgl1(A,b,tau,sigma,x0,options);
+[x,r,g,info] = spgl1General(A,b,tau,sigma,x0,options);

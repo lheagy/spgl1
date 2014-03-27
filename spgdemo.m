@@ -205,7 +205,7 @@ function spgdemo(interactive)
     
     opts = spgSetParms('iterations',1000,'verbosity',0);
     for i=1:length(tau)
-        [x,r] = spgl1(A,b,tau(i),[],x,opts);
+        [x,r] = spgl1General(A,b,tau(i),[],x,opts);
         phi(i) = norm(r);
         if ~mod(i,10), fprintf('...%i',i); end
     end
