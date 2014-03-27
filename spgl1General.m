@@ -476,7 +476,8 @@ while 1
 
     %    g2Norm  = undist(options.dual_norm(g2,weights,params));
     rNorm   = f;  % rNorm and f are exactly the same. 
-   
+    gNorm   = options.dual_norm(-g,weights);
+    
     Err = norm(x - project(x - g, tau));
     rErr = Err/max(1, f);
     
