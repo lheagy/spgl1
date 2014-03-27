@@ -358,8 +358,15 @@ if ~isempty(weights)
   if any(~isfinite(weights))
      error('Entries in options.weights must be finite');
   end
-  if any(weights <= 0)
-     error('Entries in options.weights must be strictly positive');
+  [nw,mw] = size(weights); %see if a matrix is being provided
+  if mw == 1
+      if any(weights <= 0)
+          error('Entries in options.weights must be strictly positive');
+      end
+  else
+      if any(diag(weights) <= 0) % make sure diagonal elts are strictly positive (should probably be checking it W'W is SPD)
+          error('Entries along diagonal of options.weights must be strictly positive');
+      end
   end
 else
   weights = 1;
