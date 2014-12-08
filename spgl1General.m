@@ -87,6 +87,7 @@ function [x,r,g,info] = spgl1General(A, b, tau, sigma, x, options, params)
 %        .minPareto   Minimum number of spgl1 iterations before checking for quitPareto
 %        .funPenalty  function handle for h(r) alone, with signature
 %                     [f, g] = funPenalty(r)
+%        .saveOptPath save tau, rNorm, gNorm at every iteration
 %
 
 %
@@ -165,6 +166,15 @@ function [x,r,g,info] = spgl1General(A, b, tau, sigma, x, options, params)
 %             Aleksandr Aravkin.
 %
 % 09 July 12: Removed Kacmarz options (AA).
+% 26 Mar 14: Modified error handling to allow zero entries in weighting
+%            matrix. (Lindsey Heagy)
+%               - if weights is a vector: error is thrown if there are zero
+%                 or neg entries
+%               - if weights is a matrix: error is thrown if there are zero
+%                 entries along the diagonal. 
+% 08 Dec 14: Added functionality to save tau, rNorm and gNorm curves (Lindsey
+%            J. Heagy)
+%       
 %
 %   ----------------------------------------------------------------------
 %   This file is part of SPGL1 (Spectral Projected-Gradient for L1).
@@ -190,8 +200,9 @@ function [x,r,g,info] = spgl1General(A, b, tau, sigma, x, options, params)
 %   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301
 %   USA
 %   ----------------------------------------------------------------------
+
 REVISION = '$Rev: 84 $';
-DATE     = '$Date: 2014-03-18 17:41:32 -0700 (Tues, 18 March 2014) $';
+DATE     = '$Date: 2014-12-08 10:21:32 -0700 (Mon, 08 Dec 2014)       $';
 REVISION = REVISION(6:end-1);
 DATE     = DATE(35:55);
 
@@ -257,8 +268,9 @@ defaultopts = spgSetParms(...
 'funPenalty' , @funLS          , ... % default penalty - backward compatible with spgl1
 'proxy'      ,      0          , ... % advanced option that computes pareto curve in a user-specified way. 
 'linear'     ,      0          , ... % advanced option that allows you to declare input functions to be linear
-'restore'    ,      0            ... % whether to restore best previous answer. for large problems, don't want to do this. 
-   );
+'restore'    ,      0          , ... % whether to restore best previous answer. for large problems, don't want to do this. 
+'saveOptPath',      0            ... % save tau, phid and phim? 
+);
 options = spgSetParms(defaultopts, options);
 
 
@@ -286,6 +298,7 @@ primal_norm   = options.primal_norm;
 dual_norm     = options.dual_norm;
 params.proxy  = options.proxy;
 funPenalty    = options.funPenalty;
+saveOptPath   = options.saveOptPath;
 
 
 
@@ -384,7 +397,10 @@ if ~realx && subspaceMin
    subspaceMin = false;
 end
  
-
+% Initialize name for saving inversion path
+if saveOptPath
+    saveOptPathName = 'spgl1GeneralOptPath';
+end
 
 % Pre-allocate iteration info vectors
 xNorm1 = zeros(min(maxIts,10000),1);
@@ -442,13 +458,13 @@ end
 % Project the starting point and evaluate function and gradient.
 if isempty(x)
     r         = b;  % r = b - Ax
-    [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
+    [f g g2]  = funCompositeR(r, funForward, funPenalty, params);
     dx        = project(-g, tau);
 else
     x         = project(x,tau);
     r         = b - funForward(x, [], params);  % r = b - f(x)
-    nProdA = nProdA + 1;
-    [f g g2]     = funCompositeR(r, funForward, funPenalty, params);
+    nProdA    = nProdA + 1;
+    [f g g2]  = funCompositeR(r, funForward, funPenalty, params);
     dx        = project(x - g, tau) - x;
 end
 
@@ -493,6 +509,16 @@ while 1
     aError2 = rNorm^2 - sigma^2; % Why not? 
     rError1 = abs(aError1) / max(1,rNorm);
     rError2 = abs(aError2) / max(1,f);
+    
+    % Save - likely not the best way to do this - LJH: Dec 8
+    if saveOptPath
+        sviter(iter+1)  = iter;
+        svtau(iter+1)   = tau;
+        svrNorm(iter+1) = rNorm;
+        svgNorm(iter+1) = gNorm;
+        save(saveOptPathName,'sviter','svtau','svrNorm','svgNorm');
+    end
+    
     
     % Count number of consecutive iterations with identical support.
     nnzOld = nnzIdx;

@@ -48,7 +48,7 @@ if nargin == 0 && nargout == 0
    fprintf(' proxy      : [ 0=no, 1=yes             |  0    ]\n');
    fprintf(' linear     : [ 0=no, 1=yes             |  0    ]\n');
    fprintf(' restore    : [ 0=no, 1=yes             |  0    ]\n');
-
+   fprintf(' saveOptPath: [ 0=no, 1=yes             |  0    ]\n');
 
    fprintf('\n');
    return;
@@ -85,6 +85,7 @@ Names = [
     'proxy             '
     'linear            '
     'restore           '
+    'saveOptPath       '
     ];
 [m,n] = size(Names);
 names = lower(Names);
