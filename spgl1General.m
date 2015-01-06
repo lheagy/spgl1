@@ -269,7 +269,8 @@ defaultopts = spgSetParms(...
 'proxy'      ,      0          , ... % advanced option that computes pareto curve in a user-specified way. 
 'linear'     ,      0          , ... % advanced option that allows you to declare input functions to be linear
 'restore'    ,      0          , ... % whether to restore best previous answer. for large problems, don't want to do this. 
-'saveOptPath',      0            ... % save tau, phid and phim? 
+'saveOptPath',      0          , ... % save tau, rNorm, gNorm?
+'saveX'      ,      0            ... % save model at every iteration?
 );
 options = spgSetParms(defaultopts, options);
 
@@ -299,6 +300,7 @@ dual_norm     = options.dual_norm;
 params.proxy  = options.proxy;
 funPenalty    = options.funPenalty;
 saveOptPath   = options.saveOptPath;
+saveX         = options.saveX; 
 
 
 
@@ -402,6 +404,10 @@ if saveOptPath
     saveOptPathName = 'spgl1GeneralOptPath';
 end
 
+if saveX
+    saveXName = 'spgl1GeneralX';
+end
+
 % Pre-allocate iteration info vectors
 xNorm1 = zeros(min(maxIts,10000),1);
 rNorm2 = zeros(min(maxIts,10000),1);
@@ -486,6 +492,20 @@ dispFlag('fin Init')
 
 clear dx;
 
+if saveOptPath
+    sviter   = zeros(maxIts,1);
+    svtau    = zeros(maxIts,1);
+    svrNorm  = zeros(maxIts,1);
+    svgNorm  = zeros(maxIts,1);
+    svxNorm  = zeros(maxIts,1);
+    save(saveOptPathName,'sviter','svtau','svrNorm','svgNorm','svxNorm');
+end
+
+if saveX
+    svX    = zeros(numel(x),maxIts);
+    save(saveXName,'svX');
+end
+
 %----------------------------------------------------------------------
 % MAIN LOOP.
 %----------------------------------------------------------------------
@@ -510,15 +530,7 @@ while 1
     rError1 = abs(aError1) / max(1,rNorm);
     rError2 = abs(aError2) / max(1,f);
     
-    % Save - likely not the best way to do this - LJH: Dec 8
-    if saveOptPath
-        sviter(iter+1)  = iter;
-        svtau(iter+1)   = tau;
-        svrNorm(iter+1) = rNorm;
-        svgNorm(iter+1) = gNorm;
-        save(saveOptPathName,'sviter','svtau','svrNorm','svgNorm');
-    end
-    
+ 
     
     % Count number of consecutive iterations with identical support.
     nnzOld = nnzIdx;
@@ -649,6 +661,20 @@ while 1
     end
     rNorm2(iter+1) = rNorm;
     lambda(iter+1) = gNorm;
+ 
+    if saveOptPath
+        sviter(iter+1)  = iter;
+        svtau(iter+1)   = tau;
+        svrNorm(iter+1) = rNorm;
+        svgNorm(iter+1) = gNorm;
+        svxNorm(iter+1) = xNorm1(iter+1);
+        save(saveOptPathName,'sviter','svtau','svrNorm','svgNorm','svxNorm');
+    end
+    
+    if saveX
+        svX(:,iter+1) = x;
+        save(saveXName,'svX'); 
+    end
     
     if stat, break; end % Act on exit conditions.
         

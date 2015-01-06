@@ -49,7 +49,8 @@ if nargin == 0 && nargout == 0
    fprintf(' linear     : [ 0=no, 1=yes             |  0    ]\n');
    fprintf(' restore    : [ 0=no, 1=yes             |  0    ]\n');
    fprintf(' saveOptPath: [ 0=no, 1=yes             |  0    ]\n');
-
+   fprintf(' saveX      : [ 0=no, 1=yes             |  0    ]\n');
+   
    fprintf('\n');
    return;
 end
@@ -86,6 +87,7 @@ Names = [
     'linear            '
     'restore           '
     'saveOptPath       '
+    'saveX             '
     ];
 [m,n] = size(Names);
 names = lower(Names);
