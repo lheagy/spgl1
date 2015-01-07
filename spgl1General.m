@@ -88,6 +88,7 @@ function [x,r,g,info] = spgl1General(A, b, tau, sigma, x, options, params)
 %        .funPenalty  function handle for h(r) alone, with signature
 %                     [f, g] = funPenalty(r)
 %        .saveOptPath save tau, rNorm, gNorm at every iteration
+%        .saveX       save x at every iteration
 %
 
 %
